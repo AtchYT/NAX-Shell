@@ -1,7 +1,6 @@
 import os
 import re
 import sys
-import json
 import shutil
 import getpass
 import platform
@@ -14,7 +13,7 @@ from colorama import init, Fore
 from prompt_toolkit.styles import Style
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
-from prompt_toolkit.completion import WordCompleter
+from prompt_toolkit.completion import WordCompleter, PathCompleter, NestedCompleter
 from prompt_toolkit.formatted_text import FormattedText
 
 if os.name == 'nt':
@@ -98,6 +97,7 @@ commands, aliases = {}, {}
 
 fitNAXShell = Figlet(font='mini')
 fitNAXVers = Figlet(font='mini')
+
 def clear():
     os.system('cls' if os.name == 'nt' else 'clear')
 
@@ -231,6 +231,7 @@ def get_api_password():
         match = re.search(r'<div id="users"[^>]*>(.*?)</div>', content, re.DOTALL)
         if match:
             try:
+                import json
                 users = json.loads(match.group(1).strip())
                 system_user = os.getlogin()
                 return users.get(system_user, "")
@@ -306,16 +307,19 @@ def set_window_title(title):
     else:
         print(f'\033]0;{title}\007', end='')
         
-history_file = os.path.join(os.path.expanduser("~"), ".terminal_history")
-completer = WordCompleter(list(commands.keys()) + list(aliases.keys()))
+def get_nested_completer():
+    path_completer = PathCompleter(only_directories=True)
+    
+    completer_dict = {cmd: None for cmd in commands.keys()}
+    completer_dict.update({alias: None for alias in aliases.keys()})
+'
+    completer_dict['cd'] = path_completer
+    
+    completer_dict['ls'] = path_completer
+    
+    return NestedCompleter.from_nested_dict(completer_dict)
 
-session = PromptSession(
-    get_prompt,
-    style=style,
-    completer=completer,
-    history=FileHistory(history_file),
-    complete_while_typing=True
-)
+history_file = os.path.join(os.path.expanduser("~"), ".terminal_history")
 
 def main():
     global session
@@ -328,6 +332,15 @@ def main():
     print(f"{CYAN}{fitNAXVers.renderText('v 1.0.0')}")
     print(f"{YELLOW}Platform: {platform.system()} {platform.release()}")
     print(f"{GREEN}Type 'help' for available commands\n")
+    
+    # Inicializar la sesión con el completer anidado
+    session = PromptSession(
+        get_prompt,
+        style=style,
+        completer=get_nested_completer(),
+        history=FileHistory(history_file),
+        complete_while_typing=True
+    )
     
     while True:
         try:
