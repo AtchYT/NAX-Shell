@@ -1,5 +1,4 @@
-import os
-import re
+import os                                                             import re
 import sys
 import json
 import time
@@ -18,8 +17,7 @@ from prompt_toolkit.history import FileHistory
 from prompt_toolkit.completion import WordCompleter, PathCompleter, NestedCompleter
 from prompt_toolkit.formatted_text import FormattedText
 
-
-if os.name == 'nt':
+                                                                      if os.name == 'nt':
     import wmi
 
 else:
@@ -39,8 +37,7 @@ def get_processor_name():
                 w = wmi.WMI()
                 processor = w.Win32_Processor()[0]
                 PROCESSOR_NAME = processor.Name
-
-            elif os.name == 'posix':
+                                                                                  elif os.name == 'posix':
                 with open('/proc/cpuinfo', 'r') as f:
                     for line in f:
                         if line.startswith('model name'):
@@ -75,11 +72,11 @@ def install_requirements():
 
         except ImportError:
             import importlib_metadata as metadata
-        
+
         required = {'prompt_toolkit', 'colorama', 'pyfiglet'}
         if os.name == 'nt':
             required.add('wmi')
-            
+
         installed = {dist.metadata['Name'].lower() for dist in metadata.distributions() if dist.metadata.get('Name')}
         missing = {pkg for pkg in required if pkg.lower() not in installed}
 
@@ -191,7 +188,7 @@ def sysinfo_command(args):
     print(f"{YELLOW}OS: {platform.system()} {platform.release()}")
     print(f"{YELLOW}Machine: {platform.machine()}")
     print(f"{YELLOW}Processor: {get_processor_name()}")
-    
+
     if os.name == 'posix':
         try:
             with open('/proc/meminfo', 'r') as f:
@@ -275,16 +272,16 @@ def login():
     try:
         if is_recent_auth():
             return True
-    
+
         api_password = get_api_password()
 
         if not api_password:
             print(f"{RED}Error: No se pudo obtener la contraseña del usuario desde la API")
             return False
-        
+
         print(f"{ORANGE}Authentication Required")
         current_user = getpass.getuser()
-    
+
         for _ in range(3):
             try:
                 user_input = getpass.getpass(f"Password for {current_user}: ")
@@ -292,7 +289,7 @@ def login():
                 if not user_input:
                     print(f"{RED}Sorry, try again.")
                     continue
-                
+
                 if user_input == api_password:
                     update_auth_timestamp()
                     return True
@@ -304,14 +301,52 @@ def login():
                 continue
 
         clear()
-        print(f"{RED} Exiting {CYAN}NAX-Shell{RED} | v1.0.0\n---------------------------\n")
+        print(f"{RED} Exiting {CYAN}NAX-Shell{RED} | v1.0.0\n════════════════════════════\n")
         print(f"{RED}3 incorrect password attempts")
         return False
 
     except KeyboardInterrupt:
         print("\nLogin process interrupted.")
         return False
-        
+
+def web_command(args):
+    url = "https://atchyt.github.com/nax_shell.html"
+
+    is_windows = os.name == 'nt'
+    is_termux = 'com.termux' in os.environ.get('PREFIX', '')
+
+    has_gui = False
+
+    if is_windows:
+        has_gui = True
+        try:
+            if wmi:
+                w = wmi.WMI()
+                os_info = w.Win32_OperatingSystem()[0]
+                if 'Core' in os_info.Caption and 'Server' in os_info.Caption:
+                    has_gui = False
+        except:
+            pass
+    elif is_termux:
+        has_gui = os.environ.get('DISPLAY', '') != '' or os.environ.get('XDG_SESSION_TYPE', '') != ''
+    else:
+        has_gui = os.environ.get('DISPLAY', '') != '' or os.environ.get('WAYLAND_DISPLAY', '') != ''
+
+    if has_gui:
+        try:
+            import webbrowser
+            print(f"{GREEN}Opening {url} in your browser...")
+            webbrowser.open(url)
+        except Exception as e:
+            print(f"{RED}Could not open browser: {e}")
+            print(f"{YELLOW}You can visit manually: {url}")
+    else:
+        print(f"\n{CYAN}╔═══════════════════════════════════════════╗")
+        print(f"{CYAN}║ {YELLOW}NAX Shell - Documentation and Information {CYAN}║")
+        print(f"{CYAN}╠═══════════════════════════════════════════╣")
+        print(f"{CYAN}║ {GREEN}{url}{CYAN}  ║")
+        print(f"{CYAN}╚═══════════════════════════════════════════╝\n")
+
 register_command("ls", ls_command)
 register_command("cd", cd_command)
 register_command("pwd", pwd_command)
@@ -319,6 +354,7 @@ register_command("cat", cat_command)
 register_command("cls", clear_command)
 register_command("clear", clear_command)
 register_command("sysinfo", sysinfo_command)
+register_command("web", web_command)
 register_command("help", help_command)
 register_command("exit", exit_command)
 register_command("logout", logout_command)
@@ -332,14 +368,14 @@ def set_window_title(title):
 
 def get_nested_completer():
     path_completer = PathCompleter(only_directories=True)
-    
+
     completer_dict = {cmd: None for cmd in commands.keys()}
     completer_dict.update({alias: None for alias in aliases.keys()})
-    
+
     completer_dict['cd'] = path_completer
-    
+
     completer_dict['ls'] = path_completer
-    
+
     return NestedCompleter.from_nested_dict(completer_dict)
 
 history_file = os.path.join(os.path.expanduser("~"), ".terminal_history")
@@ -356,7 +392,7 @@ session = PromptSession(
 def main():
     get_processor_name()
     global session
-    if not login(): 
+    if not login():
         return
 
     clear()
@@ -364,8 +400,9 @@ def main():
     print(f"{CYAN}{fitNAXShell.renderText('NAX-Shell')}")
     print(f"{CYAN}{fitNAXVers.renderText('v 1.0.0')}")
     print(f"{YELLOW}Platform: {platform.system()} {platform.release()}")
-    print(f"{GREEN}Type 'help' for available commands\n")
-    
+    print(f"{GREEN}Type 'help' for available commands")
+    print(f"{GREEN}For more help, type 'web'\n")
+
     while True:
         try:
             process_command(session.prompt())
@@ -383,6 +420,6 @@ if __name__ == "__main__":
     print(f"{YELLOW}Initializing shell environment...")
     time.sleep(0.75)
     clear()
-    print(f"{YELLOW} Loading {CYAN}NAX-Shell{YELLOW} | v1.0.0\n----------------------------\n")
+    print(f"{YELLOW} Loading {CYAN}NAX-Shell{YELLOW} | v1.0.0\n════════════════════════════\n")
     time.sleep(0.25)
     main()
