@@ -1,6 +1,8 @@
 import os
 import re
 import sys
+import json
+import time
 import shutil
 import getpass
 import platform
@@ -16,14 +18,15 @@ from prompt_toolkit.history import FileHistory
 from prompt_toolkit.completion import WordCompleter, PathCompleter, NestedCompleter
 from prompt_toolkit.formatted_text import FormattedText
 
+
 if os.name == 'nt':
     import wmi
+
 else:
     wmi = None
 
 init(autoreset=True)
-
-RED, GREEN, BLUE, YELLOW, CYAN, WHITE = Fore.RED, Fore.GREEN, Fore.BLUE, Fore.YELLOW, Fore.LIGHTCYAN_EX, Fore.WHITE
+RED, GREEN, BLUE, YELLOW, CYAN, WHITE, ORANGE = Fore.RED, Fore.GREEN, Fore.BLUE, Fore.LIGHTYELLOW_EX, Fore.CYAN, Fore.WHITE, Fore.YELLOW
 AUTH_FILE = os.path.join(os.path.expanduser("~"), ".nax_shell_auth")
 AUTH_DURATION = 10 * 60
 PROCESSOR_NAME = None
@@ -52,15 +55,13 @@ def get_processor_name():
 
     return PROCESSOR_NAME
 
-get_processor_name()
-
 def install_missing_packages(missing):
     try:
         process = subprocess.Popen([sys.executable, '-m', 'pip', 'install', *missing], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         stdout, stderr = process.communicate()
         if process.returncode != 0:
             print(f"{RED}Error installing packages:\n{stderr}")
-            
+
         else:
             print(stdout)
 
@@ -81,6 +82,7 @@ def install_requirements():
             
         installed = {dist.metadata['Name'].lower() for dist in metadata.distributions() if dist.metadata.get('Name')}
         missing = {pkg for pkg in required if pkg.lower() not in installed}
+
         if missing:
             print(f"{RED}Installing required packages: {', '.join(missing)}")
             thread = threading.Thread(target=install_missing_packages, args=(missing,))
@@ -88,6 +90,7 @@ def install_requirements():
             thread.join()
             return True
         return False
+
     except Exception as e:
         print(f"{RED}Error installing packages: {e}")
         sys.exit(1)
@@ -110,7 +113,6 @@ def process_command(cmd):
         return
 
     command, args = parts[0], parts[1:]
-
     if command in aliases:
         parts = aliases[command].split() + args
         command, args = parts[0], parts[1:]
@@ -149,8 +151,10 @@ def ls_command(args):
             full_path = os.path.join(path, file)
             if os.path.isdir(full_path):
                 print(f"{BLUE}{file}/", end="  ")
+
             elif os.access(full_path, os.X_OK):
                 print(f"{GREEN}{file}*", end="  ")
+
             else:
                 print(f"{WHITE}{file}", end="  ")
         print()
@@ -201,7 +205,6 @@ def help_command(args):
     print("Available commands:")
     for cmd in sorted(commands.keys()):
         print(f"  {cmd}")
-
     print("\nUse 'exit' to quit the terminal")
 
 def exit_command(args):
@@ -218,7 +221,6 @@ def logout_command(args):
 
     else:
         print(f"{YELLOW}No active session to logout.")
-
     clear()
     sys.exit(0)
 
@@ -227,11 +229,9 @@ def get_api_password():
         url = "https://atchyt.github.io/api.html"
         with urllib.request.urlopen(url) as response:
             content = response.read().decode('utf-8')
-
         match = re.search(r'<div id="users"[^>]*>(.*?)</div>', content, re.DOTALL)
         if match:
             try:
-                import json
                 users = json.loads(match.group(1).strip())
                 system_user = os.getlogin()
                 return users.get(system_user, "")
@@ -272,23 +272,46 @@ def update_auth_timestamp():
         pass
 
 def login():
-    if is_recent_auth():
-        return True
-
-    api_password = get_api_password()
-    print(f"{YELLOW}Authentication Required")
-    current_user = getpass.getuser()
-
-    for _ in range(3):
-        if getpass.getpass(f"Password for {current_user}: ") == api_password:
-            update_auth_timestamp()
+    try:
+        if is_recent_auth():
             return True
-
-        print("Sorry, try again.")
-
-    print("3 incorrect password attempts")
-    return False
     
+        api_password = get_api_password()
+
+        if not api_password:
+            print(f"{RED}Error: No se pudo obtener la contraseña del usuario desde la API")
+            return False
+        
+        print(f"{ORANGE}Authentication Required")
+        current_user = getpass.getuser()
+    
+        for _ in range(3):
+            try:
+                user_input = getpass.getpass(f"Password for {current_user}: ")
+
+                if not user_input:
+                    print(f"{RED}Sorry, try again.")
+                    continue
+                
+                if user_input == api_password:
+                    update_auth_timestamp()
+                    return True
+
+                print(f"{RED}Sorry, try again.")
+
+            except KeyboardInterrupt:
+                print(f"\n{RED}Login interrupted. Please try again.")
+                continue
+
+        clear()
+        print(f"{RED} Exiting {CYAN}NAX-Shell{RED} | v1.0.0\n---------------------------\n")
+        print(f"{RED}3 incorrect password attempts")
+        return False
+
+    except KeyboardInterrupt:
+        print("\nLogin process interrupted.")
+        return False
+        
 register_command("ls", ls_command)
 register_command("cd", cd_command)
 register_command("pwd", pwd_command)
@@ -306,13 +329,13 @@ def set_window_title(title):
 
     else:
         print(f'\033]0;{title}\007', end='')
-        
+
 def get_nested_completer():
     path_completer = PathCompleter(only_directories=True)
     
     completer_dict = {cmd: None for cmd in commands.keys()}
     completer_dict.update({alias: None for alias in aliases.keys()})
-'
+    
     completer_dict['cd'] = path_completer
     
     completer_dict['ls'] = path_completer
@@ -320,27 +343,28 @@ def get_nested_completer():
     return NestedCompleter.from_nested_dict(completer_dict)
 
 history_file = os.path.join(os.path.expanduser("~"), ".terminal_history")
+completer = WordCompleter(list(commands.keys()) + list(aliases.keys()))
+
+session = PromptSession(
+    get_prompt,
+    style=style,
+    completer=get_nested_completer(),
+    history=FileHistory(history_file),
+    complete_while_typing=True
+)
 
 def main():
+    get_processor_name()
     global session
     if not login(): 
         return
-        
+
     clear()
     set_window_title('NAX-Shell · v1.0.0')
     print(f"{CYAN}{fitNAXShell.renderText('NAX-Shell')}")
     print(f"{CYAN}{fitNAXVers.renderText('v 1.0.0')}")
     print(f"{YELLOW}Platform: {platform.system()} {platform.release()}")
     print(f"{GREEN}Type 'help' for available commands\n")
-    
-    # Inicializar la sesión con el completer anidado
-    session = PromptSession(
-        get_prompt,
-        style=style,
-        completer=get_nested_completer(),
-        history=FileHistory(history_file),
-        complete_while_typing=True
-    )
     
     while True:
         try:
@@ -353,4 +377,12 @@ def main():
             print(f"{RED}An error occurred: {str(e)}")
 
 if __name__ == "__main__":
+    clear()
+    print(f"{YELLOW}Starting {CYAN}NAX-Shell{YELLOW} | v1.0.0")
+    time.sleep(0.75)
+    print(f"{YELLOW}Initializing shell environment...")
+    time.sleep(0.75)
+    clear()
+    print(f"{YELLOW} Loading {CYAN}NAX-Shell{YELLOW} | v1.0.0\n----------------------------\n")
+    time.sleep(0.25)
     main()
