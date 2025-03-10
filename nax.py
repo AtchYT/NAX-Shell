@@ -313,7 +313,7 @@ def login():
                 print(f"{RED}Sorry, try again.")
 
             except KeyboardInterrupt:
-                print(f"\n{RED}Login interrupted. Please try again.")
+                print(f"\n{RED}Sorry, try again.")
                 continue
 
         clear()
@@ -326,7 +326,7 @@ def login():
         return False
 
 def web_command(args):
-    url = "https://atchyt.github.com/nax_shell.html"
+    url = "https://atchyt.github.io/nax_shell.html"
 
     is_windows = os.name == 'nt'
     is_termux = 'com.termux' in os.environ.get('PREFIX', '')
@@ -343,6 +343,7 @@ def web_command(args):
                     has_gui = False
         except:
             pass
+
     elif is_termux:
         has_gui = os.environ.get('DISPLAY', '') != '' or os.environ.get('XDG_SESSION_TYPE', '') != ''
 
@@ -352,7 +353,7 @@ def web_command(args):
     if has_gui:
         try:
             import webbrowser
-            print(f"{GREEN}Opening {url} in your browser...")
+            print(f"{GREEN}Opening {CYAN}{url}{GREEN} in your browser...")
             webbrowser.open(url)
 
         except Exception as e:
@@ -360,11 +361,11 @@ def web_command(args):
             print(f"{YELLOW}You can visit manually: {url}")
 
     else:
-        print(f"\n{CYAN}╔═══════════════════════════════════════════╗")
-        print(f"{CYAN}║ {YELLOW}NAX Shell - Documentation and Information {CYAN}║")
-        print(f"{CYAN}╠═══════════════════════════════════════════╣")
-        print(f"{CYAN}║ {GREEN}{url}{CYAN}  ║")
-        print(f"{CYAN}╚═══════════════════════════════════════════╝\n")
+        print(f"\n{YELLOW}╔═══════════════════════════════════════════╗")
+        print(f"{YELLOW}║ {CYAN}NAX-Shell{YELLOW} | Documentation and Information {YELLOW}║")
+        print(f"{YELLOW}╠═══════════════════════════════════════════╣")
+        print(f"{YELLOW}║ {GREEN}{url}{YELLOW}  ║")
+        print(f"{YELLOW}╚═══════════════════════════════════════════╝\n")
 
 register_command("ls", ls_command)
 register_command("cd", cd_command)
@@ -435,10 +436,10 @@ def main():
 if __name__ == "__main__":
     clear()
     print(f"{YELLOW}Starting {CYAN}NAX-Shell{YELLOW} | v1.0.0")
-    time.sleep(0.75)
+    time.sleep(0.15)
     print(f"{YELLOW}Initializing shell environment...")
-    time.sleep(0.75)
+    time.sleep(0.15)
     clear()
     print(f"{YELLOW} Loading {CYAN}NAX-Shell{YELLOW} | v1.0.0\n════════════════════════════\n")
-    time.sleep(0.25)
+    time.sleep(0.08)
     main()
