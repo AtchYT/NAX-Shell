@@ -34,7 +34,8 @@ PROCESSOR_NAME = None
 def get_processor_name():
     global PROCESSOR_NAME
     if PROCESSOR_NAME is None:
-        try:                                                                      if os.name == 'nt' and wmi:
+        try:                                                                      
+            if os.name == 'nt' and wmi:
                 w = wmi.WMI()
                 processor = w.Win32_Processor()[0]
                 PROCESSOR_NAME = processor.Name
@@ -266,6 +267,7 @@ def is_recent_auth():
 
                 if stored_hash == user_hash and (datetime.now().timestamp() - last_auth) < AUTH_DURATION:
                     return True
+                    
     except Exception:
         pass
 
@@ -278,6 +280,7 @@ def update_auth_timestamp():
 
         with open(AUTH_FILE, "w") as f:
             f.write(f"{user_hash}:{datetime.now().timestamp()}")
+            
     except Exception:
         pass
 
