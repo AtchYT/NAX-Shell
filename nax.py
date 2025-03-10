@@ -14,7 +14,8 @@ from pyfiglet import Figlet
 from datetime import datetime
 from colorama import init, Fore
 from prompt_toolkit.styles import Style
-from prompt_toolkit import PromptSession                              from prompt_toolkit.history import FileHistory
+from prompt_toolkit import PromptSession                              
+from prompt_toolkit.history import FileHistory
 from prompt_toolkit.completion import WordCompleter, PathCompleter, NestedCompleter
 from prompt_toolkit.formatted_text import FormattedText
 
