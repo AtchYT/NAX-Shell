@@ -1,9 +1,11 @@
-import os                                                             import re
+import os
+import re
 import sys
 import json
 import time
 import shutil
 import getpass
+import hashlib
 import platform
 import threading
 import subprocess
@@ -12,12 +14,11 @@ from pyfiglet import Figlet
 from datetime import datetime
 from colorama import init, Fore
 from prompt_toolkit.styles import Style
-from prompt_toolkit import PromptSession
-from prompt_toolkit.history import FileHistory
+from prompt_toolkit import PromptSession                              from prompt_toolkit.history import FileHistory
 from prompt_toolkit.completion import WordCompleter, PathCompleter, NestedCompleter
 from prompt_toolkit.formatted_text import FormattedText
 
-                                                                      if os.name == 'nt':
+if os.name == 'nt':
     import wmi
 
 else:
@@ -32,12 +33,12 @@ PROCESSOR_NAME = None
 def get_processor_name():
     global PROCESSOR_NAME
     if PROCESSOR_NAME is None:
-        try:
-            if os.name == 'nt' and wmi:
+        try:                                                                      if os.name == 'nt' and wmi:
                 w = wmi.WMI()
                 processor = w.Win32_Processor()[0]
                 PROCESSOR_NAME = processor.Name
-                                                                                  elif os.name == 'posix':
+
+            elif os.name == 'posix':
                 with open('/proc/cpuinfo', 'r') as f:
                     for line in f:
                         if line.startswith('model name'):
@@ -211,13 +212,16 @@ def logout_command(args):
     if os.path.exists(AUTH_FILE):
         try:
             os.remove(AUTH_FILE)
+            clear()
             print(f"{GREEN}Logged out successfully.")
+            time.sleep(2)
 
         except Exception as e:
             print(f"{RED}Error during logout: {e}")
 
     else:
         print(f"{YELLOW}No active session to logout.")
+
     clear()
     sys.exit(0)
 
@@ -249,12 +253,18 @@ def is_recent_auth():
     try:
         if os.path.exists(AUTH_FILE):
             with open(AUTH_FILE, "r") as f:
-                timestamp_str = f.read().strip()
-            last_auth = float(timestamp_str)
+                data = f.read().strip()
+                if ":" not in data:
+                    return False
 
-            if (datetime.now().timestamp() - last_auth) < AUTH_DURATION:
-                return True
+                stored_hash, timestamp_str = data.split(":")
+                last_auth = float(timestamp_str)
 
+                system_user = getpass.getuser()
+                user_hash = hashlib.sha256(system_user.encode()).hexdigest()
+
+                if stored_hash == user_hash and (datetime.now().timestamp() - last_auth) < AUTH_DURATION:
+                    return True
     except Exception:
         pass
 
@@ -262,9 +272,11 @@ def is_recent_auth():
 
 def update_auth_timestamp():
     try:
-        with open(AUTH_FILE, "w") as f:
-            f.write(str(datetime.now().timestamp()))
+        system_user = getpass.getuser()
+        user_hash = hashlib.sha256(system_user.encode()).hexdigest()
 
+        with open(AUTH_FILE, "w") as f:
+            f.write(f"{user_hash}:{datetime.now().timestamp()}")
     except Exception:
         pass
 
@@ -276,7 +288,7 @@ def login():
         api_password = get_api_password()
 
         if not api_password:
-            print(f"{RED}Error: No se pudo obtener la contraseña del usuario desde la API")
+            print(f"{RED}Error: Cannot get the user from the API")
             return False
 
         print(f"{ORANGE}Authentication Required")
@@ -329,6 +341,7 @@ def web_command(args):
             pass
     elif is_termux:
         has_gui = os.environ.get('DISPLAY', '') != '' or os.environ.get('XDG_SESSION_TYPE', '') != ''
+
     else:
         has_gui = os.environ.get('DISPLAY', '') != '' or os.environ.get('WAYLAND_DISPLAY', '') != ''
 
@@ -337,9 +350,11 @@ def web_command(args):
             import webbrowser
             print(f"{GREEN}Opening {url} in your browser...")
             webbrowser.open(url)
+
         except Exception as e:
             print(f"{RED}Could not open browser: {e}")
             print(f"{YELLOW}You can visit manually: {url}")
+
     else:
         print(f"\n{CYAN}╔═══════════════════════════════════════════╗")
         print(f"{CYAN}║ {YELLOW}NAX Shell - Documentation and Information {CYAN}║")
