@@ -1,8 +1,8 @@
 import importlib
 import threading
 import time
-from tqdm import tqdm
-
+from tqdm import tqdm   
+                                                             
 modules_parallel = [
     ("os", None),
     ("re", None),
@@ -44,19 +44,23 @@ def load_module(module_name, alias):
     finally:
         pbar.update(1)
 
-ANSI_AZUL = "\033[34m"
-ANSI_AMARILLO = "\033[33m"
-ANSI_RESET = "\033[0m"
+from colorama import init, Fore
 
-desc_barra = f"{ANSI_AZUL}NAX-Shell · v1.0.0{ANSI_AMARILLO}"
+init(strip=False, autoreset=True)
+
+AZUL = Fore.BLUE
+AMARILLO = Fore.YELLOW
+
+desc_barra = f"{AZUL}NAX-Shell · v1.0.0{AMARILLO}"
 
 pbar = tqdm(
-    total=len(modules_parallel),
+    total=16,
     desc=desc_barra,
     ncols=80,
-    bar_format="{desc} | {percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt}" + ANSI_RESET
+    ascii=True,
+    dynamic_ncols=True,
+    bar_format="{desc} |{bar}| {percentage:3.0f}%"
 )
-
 
 threads = []
 for mod_name, alias in modules_parallel:
