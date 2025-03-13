@@ -518,6 +518,8 @@ def touch_command(args):
             if not os.path.exists(filename):
                 open(filename, 'a').close()
                 print(f"{WHITE}File created: {filename}")
+            else:
+                print(f"{YELLOW}File already exists: {filename}")
 
         except Exception as e:
             print(f"{RED}touch: cannot create '{filename}': {e}")
