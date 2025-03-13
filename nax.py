@@ -58,9 +58,9 @@ pbar = tqdm(
     total=16,
     desc=desc_bar,
     ncols=80,
-    ascii="██",
+    ascii="══",
     dynamic_ncols=True,
-    bar_format="{desc} |{bar}| {percentage:3.0f}%"
+    bar_format="{desc} [{bar}] {percentage:3.0f}%"
 )
 
 threads = []
