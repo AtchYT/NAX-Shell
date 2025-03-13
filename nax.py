@@ -1,8 +1,8 @@
 import importlib
 import threading
 import time
-from tqdm import tqdm   
-                                                             
+from tqdm import tqdm
+
 modules_parallel = [
     ("os", None),
     ("re", None),
@@ -48,14 +48,13 @@ from colorama import init, Fore
 
 init(strip=False, autoreset=True)
 
-AZUL = Fore.BLUE
-AMARILLO = Fore.YELLOW
-
-desc_barra = f"{AZUL}NAX-Shell · v1.0.0{AMARILLO}"
+CYANtqdm = Fore.LIGHTCYAN_EX
+YELLOWtqdm = Fore.YELLOW
+                                                                                     desc_bar = f"{CYANtqdm}NAX-Shell · v1.0.0{YELLOWtqdm}"
 
 pbar = tqdm(
     total=16,
-    desc=desc_barra,
+    desc=desc_bar,
     ncols=80,
     ascii=True,
     dynamic_ncols=True,
@@ -102,7 +101,7 @@ if "prompt_toolkit_formatted_text" in loaded_modules:
     FormattedText = loaded_modules["prompt_toolkit_formatted_text"].FormattedText
 
 init(autoreset=True)
-RED, GREEN, BLUE, YELLOW, CYAN, WHITE, ORANGE = Fore.RED, Fore.GREEN, Fore.BLUE, Fore.LIGHTYELLOW_EX, Fore.CYAN, Fore.WHITE, Fore.YELLOW
+RED, GREEN, YELLOW, CYAN, WHITE, ORANGE = Fore.RED, Fore.GREEN, Fore.LIGHTYELLOW_EX, Fore.LIGHTCYAN_EX, Fore.WHITE, Fore.YELLOW
 
 AUTH_FILE = os.path.join(os.path.expanduser("~"), ".nax_shell_auth")
 AUTH_DURATION = 10 * 60
@@ -226,7 +225,7 @@ def ls_command(args):
         for file in os.listdir(path):
             full_path = os.path.join(path, file)
             if os.path.isdir(full_path):
-                print(f"{BLUE}{file}/", end="  ")
+                print(f"{CYAN}{file}/", end="  ")
             elif os.access(full_path, os.X_OK):
                 print(f"{GREEN}{file}*", end="  ")
             else:
