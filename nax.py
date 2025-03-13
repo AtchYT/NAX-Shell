@@ -13,8 +13,7 @@ modules_parallel = [
     ("getpass", None),
     ("hashlib", None),
     ("platform", None),
-    ("threading", None),
-    ("subprocess", None),
+    ("threading", None),                                                                 ("subprocess", None),
     ("urllib.request", "urllib_request"),
     ("tqdm", None),
     ("pyfiglet", None),
@@ -23,8 +22,7 @@ modules_parallel = [
 ]
 
 modules_sequential = [
-    ("prompt_toolkit.styles", "prompt_toolkit_styles"),
-    ("prompt_toolkit", None),
+    ("prompt_toolkit.styles", "prompt_toolkit_styles"),                                  ("prompt_toolkit", None),
     ("prompt_toolkit.history", "prompt_toolkit_history"),
     ("prompt_toolkit.completion", "prompt_toolkit_completion"),
     ("prompt_toolkit.formatted_text", "prompt_toolkit_formatted_text")
@@ -277,13 +275,14 @@ def clear_command(args):
 
 def cat_command(args):
     if not args:
-        print("cat: usage: cat <file>")
+        print("cat: missing file operand")
         return
-    try:
-        with open(args[0], 'r') as f:
-            print(f.read())
-    except Exception as e:
-        print(f"cat: {args[0]}: {e}")
+    for file in args:
+        try:
+            with open(file, 'r') as f:
+                print(f.read())
+        except Exception as e:
+            print(f"cat: {file}: {e}")
 
 def sysinfo_command(args):
     if PROCESSOR_NAME is None:
@@ -438,6 +437,128 @@ def web_command(args):
         print(f"{YELLOW}║ {GREEN}{url}{YELLOW}  ║")
         print(f"{YELLOW}╚═══════════════════════════════════════════╝\n")
 
+def mkdir_command(args):
+    if not args:
+        print("mkdir: missing operand")
+    else:
+        for dir_name in args:
+            try:
+                os.makedirs(dir_name, exist_ok=True)
+                print(f"{GREEN}Directory created: {dir_name}")
+            except Exception as e:
+                print(f"{RED}mkdir: cannot create directory '{dir_name}': {e}")
+
+def touch_command(args):
+    if not args:
+        print("touch: missing file operand")
+        return
+    for filename in args:
+        try:
+            if not os.path.exists(filename):
+                open(filename, 'a').close()
+                print(f"{GREEN}File created: {filename}")
+            else:
+                os.utime(filename, None)
+                print(f"{GREEN}Timestamp updated: {filename}")
+        except Exception as e:
+            print(f"{RED}touch: cannot create or update '{filename}': {e}")
+
+def rm_command(args):
+    if not args:
+        print("rm: missing operand")
+        return
+
+    recursive = False
+    targets = []
+
+    for arg in args:
+        if arg == "-r":
+            recursive = True
+        else:
+            targets.append(arg)
+
+    if not targets:
+        print("rm: missing operand")
+        return
+
+    for target in targets:
+        if not os.path.exists(target):
+            print(f"{RED}rm: cannot remove '{target}': No such file or directory")
+            continue
+        try:
+            if os.path.isdir(target):
+                if recursive:
+                    shutil.rmtree(target)
+                    print(f"{GREEN}Removed directory: {target}")
+                else:
+                    print(f"{RED}rm: cannot remove '{target}': Is a directory (use -r to remove directories)")
+            else:
+                os.remove(target)
+                print(f"{GREEN}Removed file: {target}")
+        except Exception as e:
+            print(f"{RED}rm: error removing '{target}': {e}")
+
+def notepad_command(args):
+    if not args:
+        print("notepad: missing file operand")
+        return
+    filename = args[0]
+    # Cargar contenido existente si el archivo existe
+    content = ""
+    if os.path.exists(filename):
+        try:
+            with open(filename, "r") as f:
+                content = f.read()
+        except Exception as e:
+            print(f"{RED}notepad: cannot open file '{filename}': {e}")
+            return
+
+    # Importar las funciones necesarias de prompt_toolkit
+    from prompt_toolkit import PromptSession
+    from prompt_toolkit.key_binding import KeyBindings
+
+    kb = KeyBindings()
+    saved_flag = [False]  # Lista mutable para poder modificarla en el handler
+
+    @kb.add("c-s")
+    def _(event):
+        "Guarda el archivo mientras editas (Ctrl+S)"
+        text = event.app.current_buffer.text
+        try:
+            with open(filename, "w") as f:
+                f.write(text)
+            saved_flag[0] = True
+            print(f"\n{GREEN}File saved: {filename}")
+        except Exception as e:
+            print(f"\n{RED}Error saving file '{filename}': {e}")
+
+    @kb.add("c-q")
+    def _(event):
+        "Sale del editor (Ctrl+Q)"
+        event.app.exit(result=event.app.current_buffer.text)
+
+    # Crear la sesión de edición con prompt_toolkit en modo multilinea
+    session_editor = PromptSession(
+        message=f"{YELLOW}Editing {filename} (Ctrl+S to save, Ctrl+Q to exit)\n",
+        key_bindings=kb,
+        multiline=True,
+        default=content
+    )
+    try:
+        edited_text = session_editor.prompt()
+        # Si no se guardó previamente, se guarda al salir
+        if not saved_flag[0]:
+            with open(filename, "w") as f:
+                f.write(edited_text)
+            print(f"{GREEN}File saved: {filename}")
+    except Exception as e:
+        print(f"{RED}notepad: error editing file '{filename}': {e}")
+
+register_command("notepad", notepad_command)
+register_command("rm", rm_command)
+register_command("touch", touch_command)
+register_command("mkdir", mkdir_command)
+register_command("md", mkdir_command)
 register_command("ls", ls_command)
 register_command("cd", cd_command)
 register_command("pwd", pwd_command)
@@ -459,11 +580,16 @@ def set_window_title(title):
         print(f'\033]0;{title}\007', end='')
 
 def get_nested_completer():
-    path_completer = PathCompleter(only_directories=True)
+    path_completer = PathCompleter()
     completer_dict = {cmd: None for cmd in commands.keys()}
-    completer_dict.update({alias: None for alias in aliases.keys()})
-    completer_dict['cd'] = path_completer
-    completer_dict['ls'] = path_completer
+    completer_dict.update({
+        "cd": PathCompleter(only_directories=True),
+        "mkdir": PathCompleter(only_directories=True),
+        "md": PathCompleter(only_directories=True),
+        "ls": PathCompleter(),
+        "cat": PathCompleter(only_directories=False),
+        "rm": PathCompleter()
+    })
     return NestedCompleter.from_nested_dict(completer_dict)
 
 history_file = os.path.join(os.path.expanduser("~"), ".terminal_history")
