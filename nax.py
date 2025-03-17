@@ -1,9 +1,7 @@
 import os
-import time
-import importlib
-import threading
-from tqdm import tqdm
-from colorama import init, Fore                                                      
+import time                                                                          import importlib
+import threading                                                                     from tqdm import tqdm
+from colorama import init, Fore
 
 modules_parallel = [
     ("re", None),
@@ -19,14 +17,14 @@ modules_parallel = [
     ("getpass", None),
     ("hashlib", None),
     ("platform", None),
-    ("threading", None),                                                             
+    ("threading", None),
     ("subprocess", None),
     ("urllib.request", "urllib_request"),
 ]
 
 modules_sequential = [
     ("prompt_toolkit", None),
-    ("prompt_toolkit.styles", "prompt_toolkit_styles"),                              
+    ("prompt_toolkit.styles", "prompt_toolkit_styles"),
     ("prompt_toolkit.history", "prompt_toolkit_history"),
     ("prompt_toolkit.shortcuts", "prompt_toolkit_shortcuts"),
     ("prompt_toolkit.completion", "prompt_toolkit_completion"),
@@ -41,12 +39,9 @@ def clear():
     os.system('cls' if os.name == 'nt' else 'clear')
 
 clear()
-
-def load_module(module_name, alias):
-    try:
-        mod = importlib.import_module(module_name)
-        key = alias if alias else module_name.split('.')[0]
-        loaded_modules[key] = mod
+                                                                                     def load_module(module_name, alias):
+    try:                                                                                     mod = importlib.import_module(module_name)
+        key = alias if alias else module_name.split('.')[0]                                  loaded_modules[key] = mod
 
     except Exception as e:
         print(f"Error loading {module_name}: {e}")
@@ -120,15 +115,15 @@ def get_api_url():
         try:
             url = "https://raw.githubusercontent.com/AtchYT/NAX-Shell/main/README.md"
             readme_path = os.path.join(nax_dir, "README.md")
-            
+
             with urllib_request.urlopen(url) as response:
                 remote_content = response.read()
-            
+
             if os.path.exists(readme_path):
                 try:
                     with open(readme_path, 'rb') as f:
                         local_content = f.read()
-                    
+
                     if local_content != remote_content:
                         with open(readme_path, 'wb') as f:
                             f.write(remote_content)
@@ -140,10 +135,10 @@ def get_api_url():
             else:
                 with open(readme_path, 'wb') as f:
                     f.write(remote_content)
-            
+
         except Exception as e:
             print(f"{RED}API Error: {e}")
-    
+
     download_thread = threading.Thread(target=download_in_background)
     download_thread.daemon = True
     download_thread.start()
@@ -239,14 +234,14 @@ def register_command(name, func):
 def process_command(cmd):
     if not cmd.strip():
         return
-    
+
     if ';' in cmd:
         commands_to_run = cmd.split(';')
         for single_cmd in commands_to_run:
             if single_cmd.strip():
                 process_command(single_cmd.strip())
         return
-    
+
     if '&&' in cmd:
         commands_to_run = cmd.split('&&')
         for single_cmd in commands_to_run:
@@ -255,26 +250,26 @@ def process_command(cmd):
                 if not result:
                     break
         return
-    
+
     if '|' in cmd:
         commands_to_run = cmd.split('|')
         for single_cmd in commands_to_run:
             if single_cmd.strip():
                 execute_single_command(single_cmd.strip())
         return
-    
+
     execute_single_command(cmd)
 
 def execute_single_command(cmd):
     parts = cmd.split()
     if not parts:
         return True
-    
+
     command, args = parts[0], parts[1:]
     if command in aliases:
         parts = aliases[command].split() + args
         command, args = parts[0], parts[1:]
-    
+
     if command in commands:
         try:
             commands[command](args)
@@ -428,7 +423,7 @@ def sysinfo_command(args):
                 return uptime_seconds
             except ImportError:
                 return None
-        elif platform.system() in ["Linux", "Darwin"]:  # Linux o macOS
+        elif platform.system() in ["Linux", "Darwin"]:
             try:
                 with open('/proc/uptime', 'r') as f:
                     uptime_seconds = float(f.readline().split()[0])
@@ -501,7 +496,7 @@ def sysinfo_command(args):
     print(uptime_info)
     print(resolution_info)
     print(shell_info)
-    print(terminal info)
+    print(terminal_info)
 
 def help_command(args):
     print("Available commands:")
@@ -888,7 +883,7 @@ def curl_command(args):
     if not args:
         print("curl: usage: curl <url>")
         return
-    
+
     url = args[0]
     try:
         with urllib_request.urlopen(url) as response:
@@ -901,17 +896,17 @@ def ping_command(args):
     if not args:
         print("ping: usage: ping <host>")
         return
-    
+
     host = args[0]
     count = 4
-    
+
     if "-c" in args and args.index("-c") < len(args) - 1:
         try:
             count = int(args[args.index("-c") + 1])
         except ValueError:
             print(f"{RED}ping: invalid count value")
             return
-    
+
     try:
         ip_address = None
         try:
@@ -920,15 +915,15 @@ def ping_command(args):
 
         except:
             pass
-        
+
         if not ip_address or ip_address == host:
             import socket
             ip_address = socket.gethostbyname(host)
-            
+
         print(f"PING {host} ({ip_address})")
     except Exception as e:
         print(f"PING {host} ({host})")
-    
+
     success = 0
     for i in range(count):
         try:
@@ -941,7 +936,7 @@ def ping_command(args):
 
         except Exception:
             print(f"Request timeout for icmp_seq {i+1}")
-    
+
     print(f"\n--- {host} ping statistics ---")
     loss = 100 - (success / count * 100)
     print(f"{count} packets transmitted, {success} received, {loss:.1f}% packet loss")
@@ -950,12 +945,12 @@ def wget_command(args):
     if not args:
         print("wget: usage: wget <url> [output_file]")
         return
-    
+
     url = args[0]
     output_file = args[1] if len(args) > 1 else url.split('/')[-1]
     if not output_file:
         output_file = "index.html"
-    
+
     try:
         print(f"Downloading {url} to {output_file}...")
         with urllib_request.urlopen(url) as response:
@@ -971,7 +966,7 @@ def kill_command(args):
     if not args:
         print("kill: usage: kill <pid>")
         return
-    
+
     try:
         pid = int(args[0])
         if os.name == 'nt':
@@ -1008,7 +1003,7 @@ def date_command(args):
 def df_command(args):
     try:
         if os.name == 'nt':
-            process = subprocess.Popen(['wmic', 'logicaldisk', 'get', 'deviceid,size,freespace'], 
+            process = subprocess.Popen(['wmic', 'logicaldisk', 'get', 'deviceid,size,freespace'],
                                       stdout=subprocess.PIPE, text=True)
             output, _ = process.communicate()
             print(output)
@@ -1066,7 +1061,7 @@ def alias_command(args):
             for alias, command in aliases.items():
                 print(f"{alias}='{command}'")
         return
-    
+
     if len(args) == 1 and '=' not in args[0]:
         alias = args[0]
         if alias in aliases:
@@ -1074,7 +1069,7 @@ def alias_command(args):
         else:
             print(f"alias: {alias}: not found")
         return
-    
+
     for arg in args:
         if '=' in arg:
             alias, command = arg.split('=', 1)
@@ -1091,7 +1086,7 @@ def unalias_command(args):
         print("unalias: usage: unalias <name>")
         print("Use unalias terminal=replace to define an alias")
         return
-    
+
     for alias in args:
         if alias in aliases:
             del aliases[alias]
@@ -1145,15 +1140,15 @@ def set_window_title(title):
 
 def get_nested_completer():
     path_completer = PathCompleter()
-    
+
     command_completers = {}
 
     for cmd in list(commands.keys()):
         command_completers[cmd] = None
-    
+
     for alias in aliases.keys():
         command_completers[alias] = None
-    
+
     file_commands = {
         "cat": PathCompleter(only_directories=False),
         "mkdir": PathCompleter(only_directories=True),
@@ -1166,20 +1161,20 @@ def get_nested_completer():
         "rm": PathCompleter()
     }
     command_completers.update(file_commands)
-    
+
     operators = {
         ";": NestedCompleter.from_nested_dict(command_completers),
         "&&": NestedCompleter.from_nested_dict(command_completers),
         "|": NestedCompleter.from_nested_dict(command_completers)
     }
-    
+
     result = {}
     for cmd, completer in command_completers.items():
         if completer is None:
             result[cmd] = operators
         else:
             result[cmd] = completer
-            
+
     return NestedCompleter.from_nested_dict(result)
 
 completer = WordCompleter(list(commands.keys()) + list(aliases.keys()))
