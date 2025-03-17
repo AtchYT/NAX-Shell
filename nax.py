@@ -922,6 +922,7 @@ def alias_command(args):
     if not args:
         if not aliases:
             print("No aliases defined")
+            print("Use alias terminal=replace to define an alias")
         else:
             for alias, command in aliases.items():
                 print(f"{alias}='{command}'")
@@ -949,6 +950,7 @@ def alias_command(args):
 def unalias_command(args):
     if not args:
         print("unalias: usage: unalias <name>")
+        print("Use unalias terminal=replace to define an alias")
         return
     
     for alias in args:
