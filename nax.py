@@ -200,17 +200,55 @@ def register_command(name, func):
     commands[name] = func
 
 def process_command(cmd):
+    if not cmd.strip():
+        return
+    
+    if ';' in cmd:
+        commands_to_run = cmd.split(';')
+        for single_cmd in commands_to_run:
+            if single_cmd.strip():
+                process_command(single_cmd.strip())
+        return
+    
+    if '&&' in cmd:
+        commands_to_run = cmd.split('&&')
+        for single_cmd in commands_to_run:
+            if single_cmd.strip():
+                result = execute_single_command(single_cmd.strip())
+                if not result:
+                    break
+        return
+    
+    if '|' in cmd:
+        print(f"{YELLOW}Pipe operator detected. Note: Piping is simulated in NAX-Shell.")
+        commands_to_run = cmd.split('|')
+        for single_cmd in commands_to_run:
+            if single_cmd.strip():
+                execute_single_command(single_cmd.strip())
+        return
+    
+    execute_single_command(cmd)
+
+def execute_single_command(cmd):
     parts = cmd.split()
     if not parts:
-        return
+        return True
+    
     command, args = parts[0], parts[1:]
     if command in aliases:
         parts = aliases[command].split() + args
         command, args = parts[0], parts[1:]
+    
     if command in commands:
-        commands[command](args)
+        try:
+            commands[command](args)
+            return True
+        except Exception as e:
+            print(f"{RED}Error executing '{command}': {str(e)}")
+            return False
     else:
         print(f"{RED}{command}: command not found")
+        return False
 
 def get_prompt():
     current_user, hostname, cwd = os.getlogin(), platform.node(), os.getcwd()
@@ -490,9 +528,9 @@ def web_command(args):
             print(f"{YELLOW}You can visit manually: {url}")
 
     else:
-        print(f"\n{YELLOW}╔═══════════════════════════════════════════╗")
+        print(f"\n{YELLOW}╔════════════════════════════════════════════╗")
         print(f"{YELLOW}║ {CYAN}NAX-Shell{YELLOW} | Documentation and Information {YELLOW}║")
-        print(f"{YELLOW}╠═══════════════════════════════════════════╣")
+        print(f"{YELLOW}╠══════════════════════════════════════════════╣")
         print(f"{YELLOW}║ {GREEN}{url}{YELLOW}  ║")
         print(f"{YELLOW}╚═══════════════════════════════════════════╝\n")
 
@@ -684,7 +722,7 @@ def calc_command(args):
 
             parts = expr.split()
             if parts:
-                if parts[0] not in calc_safe:  # Verifica si el comando existe
+                if parts[0] not in calc_safe:
                     print(f"{RED}calc: error: '{parts[0]}' is not a valid function or constant")
                     continue
 
@@ -751,8 +789,12 @@ def set_window_title(title):
 
 def get_nested_completer():
     path_completer = PathCompleter()
-    completer_dict = {cmd: None for cmd in commands.keys()}
-    completer_dict.update({
+    
+    command_completers = {}
+    for cmd in commands.keys():
+        command_completers[cmd] = None
+    
+    file_commands = {
         "cat": PathCompleter(only_directories=False),
         "mkdir": PathCompleter(only_directories=True),
         "cd": PathCompleter(only_directories=True),
@@ -762,8 +804,25 @@ def get_nested_completer():
         "cp": PathCompleter(),
         "mv": PathCompleter(),
         "rm": PathCompleter()
-    })
-    return NestedCompleter.from_nested_dict(completer_dict)
+    }
+    command_completers.update(file_commands)
+    
+    operators = {
+        ";": NestedCompleter.from_nested_dict(command_completers),
+        "&&": NestedCompleter.from_nested_dict(command_completers),
+        "|": NestedCompleter.from_nested_dict(command_completers)
+    }
+    
+    result = {}
+    for cmd, completer in command_completers.items():
+        if completer is None:
+
+            result[cmd] = operators
+        else:
+
+            result[cmd] = completer
+            
+    return NestedCompleter.from_nested_dict(result)
 
 history_file = os.path.join(os.path.expanduser("~"), ".terminal_history")
 completer = WordCompleter(list(commands.keys()) + list(aliases.keys()))
@@ -786,8 +845,7 @@ def main():
     print(f"{CYAN}{fitNAXShell.renderText('NAX-Shell')}")
     print(f"{CYAN}{fitNAXVers.renderText('v 1.0.0')}")
     print(f"{YELLOW}Platform: {platform.system()} {platform.release()}")
-    print(f"{GREEN}Type 'help' for available commands")
-    print(f"{GREEN}For more help, type 'web'\n")
+    print(f"{GREEN}Type 'help' for available commands\n and 'web' for documentation\n")
 
     while True:
         try:
