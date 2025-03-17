@@ -683,7 +683,11 @@ def calc_command(args):
                 continue
 
             parts = expr.split()
-            if parts and parts[0] in calc_safe:
+            if parts:
+                if parts[0] not in calc_safe:  # Verifica si el comando existe
+                    print(f"{RED}calc: error: '{parts[0]}' is not a valid function or constant")
+                    continue
+
                 func_name = parts[0]
                 func = calc_safe[func_name]
 
@@ -691,11 +695,9 @@ def calc_command(args):
                     if len(parts) == 1:
                         print(f"{RED}calc: error: Function '{func_name}' requires arguments")
                         continue
-
                     else:
                         args_str = ", ".join(parts[1:])
                         expr = f"{func_name}({args_str})"
-
                 else:
                     expr = func_name
 
