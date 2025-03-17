@@ -1,3 +1,4 @@
+import os
 import time
 import importlib
 import threading
@@ -5,7 +6,6 @@ from tqdm import tqdm
 from colorama import init, Fore                                                      
 
 modules_parallel = [
-    ("os", None),
     ("re", None),
     ("sys", None),
     ("json", None),
@@ -36,6 +36,11 @@ modules_sequential = [
 ]
 
 loaded_modules = {}
+
+def clear():
+    os.system('cls' if os.name == 'nt' else 'clear')
+
+clear()
 
 def load_module(module_name, alias):
     try:
@@ -85,10 +90,6 @@ for mod_name, alias in modules_sequential:
         print(f"Error cargando {mod_name}: {e}")
 
 globals().update(loaded_modules)
-
-if "colorama" in loaded_modules:
-    init = loaded_modules["colorama"].init
-    Fore = loaded_modules["colorama"].Fore
 
 if "prompt_toolkit_styles" in loaded_modules:
     Style = loaded_modules["prompt_toolkit_styles"].Style
@@ -187,9 +188,6 @@ if os.name == 'nt':
 
 else:
     wmi = None
-
-def clear():
-    os.system('cls' if os.name == 'nt' else 'clear')
 
 commands, aliases = {}, {}
 
