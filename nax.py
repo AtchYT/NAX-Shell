@@ -1,7 +1,8 @@
+import time
 import importlib
 import threading
-import time
 from tqdm import tqdm
+from colorama import init, Fore                                                      
 
 modules_parallel = [
     ("os", None),
@@ -9,25 +10,25 @@ modules_parallel = [
     ("sys", None),
     ("json", None),
     ("time", None),
+    ("tqdm", None),
+    ("math", None),
     ("shutil", None),
+    ("pyfiglet", None),
+    ("datetime", None),
+    ("fnmatch", None),
     ("getpass", None),
     ("hashlib", None),
     ("platform", None),
     ("threading", None),                                                             
     ("subprocess", None),
     ("urllib.request", "urllib_request"),
-    ("tqdm", None),
-    ("pyfiglet", None),
-    ("datetime", None),
-    ("fnmatch", None),
-    ("math", None),
 ]
 
 modules_sequential = [
-    ("prompt_toolkit.styles", "prompt_toolkit_styles"),                              
     ("prompt_toolkit", None),
-    ("prompt_toolkit.shortcuts", "prompt_toolkit_shortcuts"),
+    ("prompt_toolkit.styles", "prompt_toolkit_styles"),                              
     ("prompt_toolkit.history", "prompt_toolkit_history"),
+    ("prompt_toolkit.shortcuts", "prompt_toolkit_shortcuts"),
     ("prompt_toolkit.completion", "prompt_toolkit_completion"),
     ("prompt_toolkit.completion", "prompt_toolkit_completion"),
     ("prompt_toolkit.completion", "prompt_toolkit_completion"),
@@ -48,7 +49,6 @@ def load_module(module_name, alias):
     finally:
         pbar.update(1)
 
-from colorama import init, Fore                                                      
 init(strip=False, autoreset=True)
 
 RED, GREEN, YELLOW, CYAN, WHITE, ORANGE = Fore.RED, Fore.GREEN, Fore.LIGHTYELLOW_EX, Fore.LIGHTCYAN_EX, Fore.WHITE, Fore.YELLOW
@@ -845,7 +845,7 @@ def main():
     print(f"{CYAN}{fitNAXShell.renderText('NAX-Shell')}")
     print(f"{CYAN}{fitNAXVers.renderText('v 1.0.0')}")
     print(f"{YELLOW}Platform: {platform.system()} {platform.release()}")
-    print(f"{GREEN}Type 'help' for available commands\n and 'web' for documentation\n")
+    print(f"{GREEN}Type 'help' for available commands\nand 'web' for documentation\n")
 
     while True:
         try:
