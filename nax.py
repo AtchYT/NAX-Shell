@@ -419,17 +419,51 @@ def sysinfo_command(args):
         except:
             memory_info = f"{YELLOW}Memory: Not available"
 
-    uptime_info = ""
-    if os.name == 'posix':
-        try:
-            with open('/proc/uptime', 'r') as f:
-                uptime_seconds = float(f.readline().split()[0])
-                uptime_days = int(uptime_seconds // (3600 * 24))
-                uptime_hours = int((uptime_seconds % (3600 * 24)) // 3600)
-                uptime_minutes = int((uptime_seconds % 3600) // 60)
-                uptime_info = f"{YELLOW}Uptime: {uptime_days}d {uptime_hours}h {uptime_minutes}m"
-        except:
-            uptime_info = f"{YELLOW}Uptime: Not available"
+    def get_uptime():
+        if platform.system() == "Windows":
+            try:
+                import psutil
+                boot_time = psutil.boot_time()
+                uptime_seconds = time.time() - boot_time
+                return uptime_seconds
+            except ImportError:
+                return None
+        elif platform.system() in ["Linux", "Darwin"]:  # Linux o macOS
+            try:
+                with open('/proc/uptime', 'r') as f:
+                    uptime_seconds = float(f.readline().split()[0])
+                    return uptime_seconds
+            except (FileNotFoundError, PermissionError):
+                try:
+                    uptime_output = subprocess.check_output(['uptime', '-p']).decode('utf-8').strip()
+                    if uptime_output.startswith("up"):
+                        uptime_str = uptime_output[3:]
+                        days, hours, minutes = 0, 0, 0
+                        if "day" in uptime_str:
+                            days = int(uptime_str.split(" day")[0])
+                            uptime_str = uptime_str.split(", ")[1] if ", " in uptime_str else ""
+                        if "hour" in uptime_str:
+                            hours = int(uptime_str.split(" hour")[0])
+                            uptime_str = uptime_str.split(", ")[1] if ", " in uptime_str else ""
+                        if "minute" in uptime_str:
+                            minutes = int(uptime_str.split(" minute")[0])
+                        uptime_seconds = days * 86400 + hours * 3600 + minutes * 60
+                        return uptime_seconds
+                except Exception:
+                    return None
+        else:
+            return None
+
+    def format_uptime(uptime_seconds):
+        if uptime_seconds is None:
+            return "Not available"
+        uptime_days = int(uptime_seconds // (3600 * 24))
+        uptime_hours = int((uptime_seconds % (3600 * 24)) // 3600)
+        uptime_minutes = int((uptime_seconds % 3600) // 60)
+        return f"{uptime_days}d {uptime_hours}h {uptime_minutes}m"
+
+    uptime_seconds = get_uptime()
+    uptime_info = f"{YELLOW}Uptime: {format_uptime(uptime_seconds)}"
 
     resolution_info = ""
     if os.name == 'nt':
@@ -467,7 +501,7 @@ def sysinfo_command(args):
     print(uptime_info)
     print(resolution_info)
     print(shell_info)
-    print(terminal_info)
+    print(terminal info)
 
 def help_command(args):
     print("Available commands:")
