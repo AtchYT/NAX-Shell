@@ -108,6 +108,7 @@ if "prompt_toolkit_formatted_text" in loaded_modules:
 AUTH_FILE = os.path.join(os.path.expanduser("~"), ".nax_shell_auth")
 AUTH_DURATION = 30 * 60
 PROCESSOR_NAME = None
+ALIAS_FILE = os.path.join(os.path.expanduser("~"), ".nax_shell_aliases")
 
 def get_processor_name():
     global PROCESSOR_NAME
@@ -268,6 +269,11 @@ style = Style.from_dict({
     'path': 'ansiblue',
     'prompt': 'ansiwhite',
 })
+
+def update_completer():
+    global session
+    nested_completer = get_nested_completer()
+    session.completer = nested_completer
 
 def ls_command(args):
     path = args[0] if args else os.getcwd()
@@ -754,6 +760,217 @@ def history_command(args):
     except Exception as e:
         print(f"history: error reading history: {e}")
 
+def curl_command(args):
+    if not args:
+        print("curl: usage: curl <url>")
+        return
+    
+    url = args[0]
+    try:
+        with urllib_request.urlopen(url) as response:
+            content = response.read().decode('utf-8')
+            print(content)
+    except Exception as e:
+        print(f"{RED}curl: error: {e}")
+
+def ping_command(args):
+    if not args:
+        print("ping: usage: ping <host>")
+        return
+    
+    host = args[0]
+    count = 4
+    
+    if "-c" in args and args.index("-c") < len(args) - 1:
+        try:
+            count = int(args[args.index("-c") + 1])
+        except ValueError:
+            print(f"{RED}ping: invalid count value")
+            return
+    
+    print(f"PING {host} ({host})")
+    
+    success = 0
+    for i in range(count):
+        try:
+            start_time = time.time()
+            urllib_request.urlopen(f"http://{host}", timeout=2)
+            elapsed = (time.time() - start_time) * 1000
+            print(f"64 bytes from {host}: icmp_seq={i+1} ttl=64 time={elapsed:.2f} ms")
+            success += 1
+            time.sleep(1)
+
+        except Exception:
+            print(f"Request timeout for icmp_seq {i+1}")
+    
+    print(f"\n--- {host} ping statistics ---")
+    loss = 100 - (success / count * 100)
+    print(f"{count} packets transmitted, {success} received, {loss:.1f}% packet loss")
+
+def wget_command(args):
+    if not args:
+        print("wget: usage: wget <url> [output_file]")
+        return
+    
+    url = args[0]
+    output_file = args[1] if len(args) > 1 else url.split('/')[-1]
+    if not output_file:
+        output_file = "index.html"
+    
+    try:
+        print(f"Downloading {url} to {output_file}...")
+        with urllib_request.urlopen(url) as response:
+            content = response.read()
+            with open(output_file, 'wb') as f:
+                f.write(content)
+            print(f"{GREEN}Download complete: {output_file}")
+
+    except Exception as e:
+        print(f"{RED}wget: error: {e}")
+
+def kill_command(args):
+    if not args:
+        print("kill: usage: kill <pid>")
+        return
+    
+    try:
+        pid = int(args[0])
+        if os.name == 'nt':
+            subprocess.run(['taskkill', '/PID', str(pid), '/F'], check=True)
+            print(f"{GREEN}Process with PID {pid} terminated")
+
+        else:
+            os.kill(pid, 9)
+            print(f"{GREEN}Process with PID {pid} terminated")
+
+    except ValueError:
+        print(f"{RED}kill: invalid process id: {args[0]}")
+
+    except subprocess.CalledProcessError as e:
+        print(f"{RED}kill: error: {e}")
+
+    except Exception as e:
+        print(f"{RED}kill: error: {e}")
+
+def whoami_command(args):
+    try:
+        print(os.getlogin())
+
+    except Exception as e:
+        print(f"{RED}whoami: error: {e}")
+
+def date_command(args):
+    try:
+        print(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+
+    except Exception as e:
+        print(f"{RED}date: error: {e}")
+
+def df_command(args):
+    try:
+        if os.name == 'nt':
+            process = subprocess.Popen(['wmic', 'logicaldisk', 'get', 'deviceid,size,freespace'], 
+                                      stdout=subprocess.PIPE, text=True)
+            output, _ = process.communicate()
+            print(output)
+
+        else:
+            process = subprocess.Popen(['df', '-h'], stdout=subprocess.PIPE, text=True)
+            output, _ = process.communicate()
+            print(output)
+
+    except Exception as e:
+        print(f"{RED}df: error: {e}")
+
+def ps_command(args):
+    try:
+        if os.name == 'nt':
+            process = subprocess.Popen(['tasklist'], stdout=subprocess.PIPE, text=True)
+            output, _ = process.communicate()
+            print(output)
+
+        else:
+            process = subprocess.Popen(['ps', 'aux'], stdout=subprocess.PIPE, text=True)
+            output, _ = process.communicate()
+            print(output)
+
+    except Exception as e:
+        print(f"{RED}ps: error: {e}")
+
+def load_aliases():
+    global aliases
+    try:
+        if os.path.exists(ALIAS_FILE):
+            with open(ALIAS_FILE, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and '=' in line:
+                        alias, command = line.split('=', 1)
+                        aliases[alias] = command
+    except Exception as e:
+        print(f"{RED}Error loading aliases: {e}")
+
+def save_aliases():
+    try:
+        with open(ALIAS_FILE, 'w') as f:
+            for alias, command in aliases.items():
+                f.write(f"{alias}={command}\n")
+    except Exception as e:
+        print(f"{RED}Error saving aliases: {e}")
+
+def alias_command(args):
+    if not args:
+        if not aliases:
+            print("No aliases defined")
+        else:
+            for alias, command in aliases.items():
+                print(f"{alias}='{command}'")
+        return
+    
+    if len(args) == 1 and '=' not in args[0]:
+        alias = args[0]
+        if alias in aliases:
+            print(f"{alias}='{aliases[alias]}'")
+        else:
+            print(f"alias: {alias}: not found")
+        return
+    
+    for arg in args:
+        if '=' in arg:
+            alias, command = arg.split('=', 1)
+            aliases[alias] = command
+            print(f"Alias set: {alias}='{command}'")
+            save_aliases()
+            update_completer()
+
+        else:
+            print(f"alias: invalid format: {arg}")
+
+def unalias_command(args):
+    if not args:
+        print("unalias: usage: unalias <name>")
+        return
+    
+    for alias in args:
+        if alias in aliases:
+            del aliases[alias]
+            print(f"Alias removed: {alias}")
+            save_aliases()
+            update_completer()
+
+        else:
+            print(f"unalias: {alias}: not found")
+
+register_command("alias", alias_command)
+register_command("unalias", unalias_command)
+register_command("ps", ps_command)
+register_command("kill", kill_command)
+register_command("df", df_command)
+register_command("whoami", whoami_command)
+register_command("date", date_command)
+register_command("curl", curl_command)
+register_command("ping", ping_command)
+register_command("wget", wget_command)
 register_command("rm", rm_command)
 register_command("touch", touch_command)
 register_command("mkdir", mkdir_command)
@@ -789,8 +1006,12 @@ def get_nested_completer():
     path_completer = PathCompleter()
     
     command_completers = {}
-    for cmd in commands.keys():
+
+    for cmd in list(commands.keys()):
         command_completers[cmd] = None
+    
+    for alias in aliases.keys():
+        command_completers[alias] = None
     
     file_commands = {
         "cat": PathCompleter(only_directories=False),
@@ -814,10 +1035,8 @@ def get_nested_completer():
     result = {}
     for cmd, completer in command_completers.items():
         if completer is None:
-
             result[cmd] = operators
         else:
-
             result[cmd] = completer
             
     return NestedCompleter.from_nested_dict(result)
@@ -844,6 +1063,8 @@ def main():
     print(f"{CYAN}{fitNAXVers.renderText('v 1.0.0')}")
     print(f"{YELLOW}Platform: {platform.system()} {platform.release()}")
     print(f"{GREEN}Type 'help' for available commands\nand 'web' for documentation\n")
+    load_aliases()
+    update_completer()
 
     while True:
         try:
