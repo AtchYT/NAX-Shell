@@ -400,21 +400,81 @@ def sysinfo_command(args):
         print(f"{YELLOW}Loading information...\n", end='', flush=True)
         get_processor_name()
         print('\033[1A\033[K', end='')
-
     else:
         get_processor_name()
-    print(f"{YELLOW}OS: {platform.system()} {platform.release()}")
-    print(f"{YELLOW}Machine: {platform.machine()}")
-    print(f"{YELLOW}Processor: {get_processor_name()}")
 
+    os_info = f"{YELLOW}OS: {platform.system()} {platform.release()}"
+    kernel_info = f"{YELLOW}Kernel: {platform.version()}"
+    machine_info = f"{YELLOW}Machine: {platform.machine()}"
+    processor_info = f"{YELLOW}Processor: {get_processor_name()}"
+
+    memory_info = ""
     if os.name == 'posix':
         try:
             with open('/proc/meminfo', 'r') as f:
-                mem_info = f.readline()
-                print(f"{YELLOW}Memory: {mem_info.split(':')[1].strip()}")
+                mem_total = int(f.readline().split()[1]) // 1024
+                mem_free = int(f.readline().split()[1]) // 1024
+                mem_used = mem_total - mem_free
+                memory_info = f"{YELLOW}Memory: {mem_used}MB / {mem_total}MB"
+        except:
+            memory_info = f"{YELLOW}Memory: Not available"
+
+    uptime_info = ""
+    if os.name == 'posix':
+        try:
+            with open('/proc/uptime', 'r') as f:
+                uptime_seconds = float(f.readline().split()[0])
+                uptime_days = int(uptime_seconds // (3600 * 24))
+                uptime_hours = int((uptime_seconds % (3600 * 24)) // 3600)
+                uptime_minutes = int((uptime_seconds % 3600) // 60)
+                uptime_info = f"{YELLOW}Uptime: {uptime_days}d {uptime_hours}h {uptime_minutes}m"
 
         except:
-            pass
+            uptime_info = f"{YELLOW}Uptime: Not available"
+
+    resolution_info = ""
+    if os.name == 'nt':
+        try:
+            import ctypes
+            user32 = ctypes.windll.user32
+            width = user32.GetSystemMetrics(0)
+            height = user32.GetSystemMetrics(1)
+            resolution_info = f"{YELLOW}Resolution: {width}x{height}"
+
+        except:
+            resolution_info = f"{YELLOW}Resolution: Not available"
+
+    elif os.name == 'posix':
+        try:
+            import subprocess
+            output = subprocess.check_output(['xrandr']).decode('utf-8')
+
+            for line in output.splitlines():
+                if '*' in line:
+                    resolution = line.split()[0]
+                    resolution_info = f"{YELLOW}Resolution: {resolution}"
+                    break
+
+        except:
+            resolution_info = f"{YELLOW}Resolution: Not available"
+
+
+    shell_info = f"{YELLOW}Shell: {os.environ.get('SHELL', 'Not available')}"
+    terminal_info = f"{YELLOW}Terminal: {os.environ.get('TERM', 'Not available')}"
+
+    print(f"{CYAN}════════════════════════════════════════════")
+    print(f"{CYAN}NAX-Shell System Information")
+    print(f"{CYAN}════════════════════════════════════════════")
+    print(os_info)
+    print(kernel_info)
+    print(machine_info)
+    print(processor_info)
+    print(memory_info)
+    print(uptime_info)
+    print(resolution_info)
+    print(shell_info)
+    print(terminal_info)
+    print(f"{CYAN}════════════════════════════════════════════")
 
 def help_command(args):
     print("Available commands:")
