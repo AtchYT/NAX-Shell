@@ -257,7 +257,6 @@ def process_command(cmd):
         return
     
     if '|' in cmd:
-        print(f"{YELLOW}Pipe operator detected. Note: Piping is simulated in NAX-Shell.")
         commands_to_run = cmd.split('|')
         for single_cmd in commands_to_run:
             if single_cmd.strip():
@@ -826,7 +825,22 @@ def ping_command(args):
             print(f"{RED}ping: invalid count value")
             return
     
-    print(f"PING {host} ({host})")
+    try:
+        ip_address = None
+        try:
+            with urllib_request.urlopen(f"http://{host}", timeout=2) as response:
+                ip_address = response.geturl().split('/')[2].split(':')[0]
+
+        except:
+            pass
+        
+        if not ip_address or ip_address == host:
+            import socket
+            ip_address = socket.gethostbyname(host)
+            
+        print(f"PING {host} ({ip_address})")
+    except Exception as e:
+        print(f"PING {host} ({host})")
     
     success = 0
     for i in range(count):
