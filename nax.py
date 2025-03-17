@@ -428,7 +428,6 @@ def sysinfo_command(args):
                 uptime_hours = int((uptime_seconds % (3600 * 24)) // 3600)
                 uptime_minutes = int((uptime_seconds % 3600) // 60)
                 uptime_info = f"{YELLOW}Uptime: {uptime_days}d {uptime_hours}h {uptime_minutes}m"
-
         except:
             uptime_info = f"{YELLOW}Uptime: Not available"
 
@@ -440,24 +439,19 @@ def sysinfo_command(args):
             width = user32.GetSystemMetrics(0)
             height = user32.GetSystemMetrics(1)
             resolution_info = f"{YELLOW}Resolution: {width}x{height}"
-
         except:
             resolution_info = f"{YELLOW}Resolution: Not available"
-
     elif os.name == 'posix':
         try:
             import subprocess
-            output = subprocess.check_output(['xrandr']).decode('utf-8')
-
+            output = subprocess.check_output(['termux-display']).decode('utf-8')
             for line in output.splitlines():
-                if '*' in line:
-                    resolution = line.split()[0]
+                if 'Physical size' in line:
+                    resolution = line.split(':')[1].strip()
                     resolution_info = f"{YELLOW}Resolution: {resolution}"
                     break
-
         except:
             resolution_info = f"{YELLOW}Resolution: Not available"
-
 
     shell_info = f"{YELLOW}Shell: {os.environ.get('SHELL', 'Not available')}"
     terminal_info = f"{YELLOW}Terminal: {os.environ.get('TERM', 'Not available')}"
@@ -474,7 +468,6 @@ def sysinfo_command(args):
     print(resolution_info)
     print(shell_info)
     print(terminal_info)
-    print(f"{CYAN}════════════════════════════════════════════")
 
 def help_command(args):
     print("Available commands:")
