@@ -105,10 +105,48 @@ if "prompt_toolkit_completion" in loaded_modules:
 if "prompt_toolkit_formatted_text" in loaded_modules:
     FormattedText = loaded_modules["prompt_toolkit_formatted_text"].FormattedText
 
-AUTH_FILE = os.path.join(os.path.expanduser("~"), ".nax_shell_auth")
+nax_dir = os.path.join(os.path.expanduser("~"), ".NAX-Shell")
+if not os.path.exists(nax_dir):
+    os.makedirs(nax_dir)
+
+HISTORY_FILE = os.path.join(nax_dir, ".nax_shell_history")
+ALIAS_FILE = os.path.join(nax_dir, ".nax_shell_aliases")
+AUTH_FILE = os.path.join(nax_dir, ".nax_shell_auth")
 AUTH_DURATION = 30 * 60
 PROCESSOR_NAME = None
-ALIAS_FILE = os.path.join(os.path.expanduser("~"), ".nax_shell_aliases")
+
+def get_api_url():
+    def download_in_background():
+        try:
+            url = "https://raw.githubusercontent.com/AtchYT/NAX-Shell/main/README.md"
+            readme_path = os.path.join(nax_dir, "README.md")
+            
+            with urllib_request.urlopen(url) as response:
+                remote_content = response.read()
+            
+            if os.path.exists(readme_path):
+                try:
+                    with open(readme_path, 'rb') as f:
+                        local_content = f.read()
+                    
+                    if local_content != remote_content:
+                        with open(readme_path, 'wb') as f:
+                            f.write(remote_content)
+
+                except Exception:
+                    with open(readme_path, 'wb') as f:
+                        f.write(remote_content)
+
+            else:
+                with open(readme_path, 'wb') as f:
+                    f.write(remote_content)
+            
+        except Exception as e:
+            print(f"{RED}API Error: {e}")
+    
+    download_thread = threading.Thread(target=download_in_background)
+    download_thread.daemon = True
+    download_thread.start()
 
 def get_processor_name():
     global PROCESSOR_NAME
@@ -754,7 +792,7 @@ def calc_command(args):
 
 def history_command(args):
     try:
-        with open(history_file, "r") as f:
+        with open(HISTORY_FILE, "r") as f:
             print(f.read())
 
     except Exception as e:
@@ -1043,14 +1081,13 @@ def get_nested_completer():
             
     return NestedCompleter.from_nested_dict(result)
 
-history_file = os.path.join(os.path.expanduser("~"), ".terminal_history")
 completer = WordCompleter(list(commands.keys()) + list(aliases.keys()))
 
 session = loaded_modules["prompt_toolkit_shortcuts"].PromptSession(
     get_prompt,
     style=style,
     completer=get_nested_completer(),
-    history=FileHistory(history_file),
+    history=FileHistory(HISTORY_FILE),
     complete_while_typing=True
 )
 
@@ -1067,6 +1104,7 @@ def main():
     print(f"{GREEN}Type 'help' for available commands\nand 'web' for documentation\n")
     load_aliases()
     update_completer()
+    get_api_url()
 
     while True:
         try:
