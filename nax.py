@@ -26,7 +26,8 @@ modules_parallel = [
 modules_sequential = [
     ("prompt_toolkit.styles", "prompt_toolkit_styles"),                              
     ("prompt_toolkit", None),
-    ("prompt_toolkit.shortcuts", "prompt_toolkit_shortcuts"),                            ("prompt_toolkit.history", "prompt_toolkit_history"),
+    ("prompt_toolkit.shortcuts", "prompt_toolkit_shortcuts"),
+    ("prompt_toolkit.history", "prompt_toolkit_history"),
     ("prompt_toolkit.completion", "prompt_toolkit_completion"),
     ("prompt_toolkit.completion", "prompt_toolkit_completion"),
     ("prompt_toolkit.completion", "prompt_toolkit_completion"),
@@ -47,8 +48,7 @@ def load_module(module_name, alias):
     finally:
         pbar.update(1)
 
-from colorama import init, Fore
-
+from colorama import init, Fore                                                      
 init(strip=False, autoreset=True)
 
 RED, GREEN, YELLOW, CYAN, WHITE, ORANGE = Fore.RED, Fore.GREEN, Fore.LIGHTYELLOW_EX, Fore.LIGHTCYAN_EX, Fore.WHITE, Fore.YELLOW
@@ -701,6 +701,9 @@ def calc_command(args):
 
             result = eval(expr, {"__builtins__": None}, calc_safe)
             print(result)
+
+        except SyntaxError:
+            print(f"{RED}calc: error: Invalid syntax")
 
         except Exception as e:
             print(f"{RED}calc: error: {e}")
