@@ -13,19 +13,20 @@ modules_parallel = [
     ("getpass", None),
     ("hashlib", None),
     ("platform", None),
-    ("threading", None),                                                                 
+    ("threading", None),                                                             
     ("subprocess", None),
     ("urllib.request", "urllib_request"),
     ("tqdm", None),
     ("pyfiglet", None),
     ("datetime", None),
-    ("colorama", None),
+    ("fnmatch", None),
+    ("math", None),
 ]
 
 modules_sequential = [
-    ("prompt_toolkit.styles", "prompt_toolkit_styles"),                                  
+    ("prompt_toolkit.styles", "prompt_toolkit_styles"),                              
     ("prompt_toolkit", None),
-    ("prompt_toolkit.history", "prompt_toolkit_history"),
+    ("prompt_toolkit.shortcuts", "prompt_toolkit_shortcuts"),                            ("prompt_toolkit.history", "prompt_toolkit_history"),
     ("prompt_toolkit.completion", "prompt_toolkit_completion"),
     ("prompt_toolkit.completion", "prompt_toolkit_completion"),
     ("prompt_toolkit.completion", "prompt_toolkit_completion"),
@@ -559,9 +560,158 @@ def rm_command(args):
             else:
                 os.remove(target)
                 print(f"{WHITE}Removed file: {target}")
-                
+
         except Exception as e:
             print(f"{RED}rm: error removing '{target}': {e}")
+
+def chmod_command(args):
+    if len(args) < 2:
+        print("chmod: usage: chmod <mode> <file>")
+        return
+
+    mode, *files = args
+
+    try:
+        if any(symbol in mode for symbol in ('+', '-', '=')):
+            current_mode = os.stat(files[0]).st_mode
+
+            if '+x' in mode:
+                new_mode = current_mode | 0o111
+
+            elif '-x' in mode:
+                new_mode = current_mode & ~0o111
+
+            else:
+                print(f"{RED}chmod: unsupported symbolic mode: '{mode}'")
+                return
+
+            for file in files:
+                try:
+                    os.chmod(file, new_mode)
+                    print(f"{WHITE}Mode changed for {file}")
+
+                except Exception as e:
+                    print(f"{RED}chmod: cannot change mode of '{file}': {e}")
+
+        else:
+            mode_int = int(mode, 8)
+            for file in files:
+                try:
+                    os.chmod(file, mode_int)
+                    print(f"{WHITE}Mode changed for {file}")
+
+                except Exception as e:
+                    print(f"{RED}chmod: cannot change mode of '{file}': {e}")
+
+    except ValueError:
+        print(f"{RED}chmod: invalid mode: '{mode}'")
+
+def echo_command(args):
+    print(" ".join(args))
+
+def grep_command(args):
+    if len(args) < 2:
+        print("grep: usage: grep <pattern> <file>")
+        return
+
+    pattern = args[0]
+    files = args[1:]
+
+    try:
+        regex = re.compile(pattern)
+        for file in files:
+            try:
+                with open(file, 'r') as f:
+                    for i, line in enumerate(f, 1):
+                        if regex.search(line):
+                            print(f"{file}:{i}: {line.rstrip()}")
+
+            except Exception as e:
+                print(f"{RED}grep: {file}: {e}")
+
+    except re.error as e:
+        print(f"{RED}grep: invalid pattern: {e}")
+
+def find_command(args):
+    if not args:
+        args = ['.']
+
+    root = args[0]
+    pattern = args[1] if len(args) > 1 else '*'
+
+    try:
+        for path, dirs, files in os.walk(root):
+            for item in dirs + files:
+                if fnmatch.fnmatch(item, pattern):
+                    print(os.path.join(path, item))
+
+    except Exception as e:
+        print(f"{RED}find: error: {e}")
+
+calc_safe = {
+    'abs': abs,
+    'round': round,
+    'min': min,
+    'max': max,
+    'pow': pow,
+    'sqrt': math.sqrt,
+    'sin': math.sin,
+    'cos': math.cos,
+    'tan': math.tan,
+    'asin': math.asin,
+    'acos': math.acos,
+    'atan': math.atan,
+    'log': math.log,
+    'log10': math.log10,
+    'exp': math.exp,
+    'pi': math.pi,
+    'e': math.e,
+    'factorial': math.factorial,
+}
+
+calc_completer = WordCompleter(list(calc_safe.keys()) + ['+', '-', '*', '/', '**', '(', ')', '[', ']', '{', '}', '==', '!=', '<', '>', '<=', '>='])
+
+def calc_command(args):
+    session_calc = loaded_modules["prompt_toolkit_shortcuts"].PromptSession("calc> ", completer=calc_completer)
+    while True:
+        try:
+            expr = session_calc.prompt()
+            if expr.strip().lower() in ['exit', 'quit']:
+                break
+
+            if not expr.strip():
+                continue
+
+            parts = expr.split()
+            if parts and parts[0] in calc_safe:
+                func_name = parts[0]
+                func = calc_safe[func_name]
+
+                if callable(func):
+                    if len(parts) == 1:
+                        print(f"{RED}calc: error: Function '{func_name}' requires arguments")
+                        continue
+
+                    else:
+                        args_str = ", ".join(parts[1:])
+                        expr = f"{func_name}({args_str})"
+
+                else:
+                    expr = func_name
+
+            result = eval(expr, {"__builtins__": None}, calc_safe)
+            print(result)
+
+        except Exception as e:
+            print(f"{RED}calc: error: {e}")
+
+def history_command(args):
+    try:
+        with open(history_file, "r") as f:
+            print(f.read())
+
+    except Exception as e:
+        print(f"history: error reading history: {e}")
 
 register_command("rm", rm_command)
 register_command("touch", touch_command)
@@ -580,6 +730,12 @@ register_command("exit", exit_command)
 register_command("logout", logout_command)
 register_command("cp", cp_command)
 register_command("mv", mv_command)
+register_command("chmod", chmod_command)
+register_command("echo", echo_command)
+register_command("grep", grep_command)
+register_command("find", find_command)
+register_command("calc", calc_command)
+register_command("history", history_command)
 
 def set_window_title(title):
     if os.name == 'nt':
@@ -597,6 +753,9 @@ def get_nested_completer():
         "cd": PathCompleter(only_directories=True),
         "md": PathCompleter(only_directories=True),
         "ls": PathCompleter(),
+        "grep": PathCompleter(),
+        "cp": PathCompleter(),
+        "mv": PathCompleter(),
         "rm": PathCompleter()
     })
     return NestedCompleter.from_nested_dict(completer_dict)
@@ -604,7 +763,7 @@ def get_nested_completer():
 history_file = os.path.join(os.path.expanduser("~"), ".terminal_history")
 completer = WordCompleter(list(commands.keys()) + list(aliases.keys()))
 
-session = loaded_modules["prompt_toolkit"].PromptSession(
+session = loaded_modules["prompt_toolkit_shortcuts"].PromptSession(
     get_prompt,
     style=style,
     completer=get_nested_completer(),
