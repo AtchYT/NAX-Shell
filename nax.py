@@ -22,6 +22,13 @@ modules_parallel = [
     ("threading", None),
     ("subprocess", None),
     ("urllib.request", "urllib_request"),
+    ("zipfile", None),
+    ("difflib", None),
+    ("psutil", None),
+    ("markdown", None),
+    ("yaml", None),
+    ("tarfile", None),
+    ("socket", None),
 ]
 
 modules_sequential = [
@@ -195,7 +202,7 @@ def install_requirements():
         except ImportError:
             import importlib_metadata as metadata
 
-        required = {'prompt_toolkit', 'colorama', 'pyfiglet', 'tqdm'}
+        required = {'prompt_toolkit', 'colorama', 'pyfiglet', 'tqdm', 'rarfile', 'markdown', 'pyyaml', 'rarfile', 'psutil'}
         if os.name == 'nt':
             required.add('wmi')
 
@@ -1102,6 +1109,296 @@ def unalias_command(args):
         else:
             print(f"unalias: {alias}: not found")
 
+def diff_command(args):
+    if len(args) != 2:
+        print("diff: usage: diff <file1> <file2>")
+        return
+    
+    file1, file2 = args[0], args[1]
+    try:
+        with open(file1, 'r') as f1, open(file2, 'r') as f2:
+            diff = difflib.unified_diff(
+                f1.readlines(),
+                f2.readlines(),
+                fromfile=file1,
+                tofile=file2,
+            )
+            for line in diff:
+                print(line, end='')
+    except Exception as e:
+        print(f"{RED}diff error: {e}")
+
+def netinfo_command(args):
+    try:
+        import socket
+        hostname = socket.gethostname()
+        ip_address = socket.gethostbyname(hostname)
+        print(f"{CYAN}Network Information")
+        print(f"{YELLOW}Hostname: {hostname}")
+        print(f"{YELLOW}IP Address: {ip_address}")
+    except Exception as e:
+        print(f"{RED}netinfo error: {e}")
+
+def monitor_command(args):
+    try:
+        import psutil
+        print(f"{CYAN}System Monitoring")
+        print(f"{YELLOW}CPU Usage: {psutil.cpu_percent()}%")
+        print(f"{YELLOW}Memory Usage: {psutil.virtual_memory().percent}%")
+        print(f"{YELLOW}Disk Usage: {psutil.disk_usage('/').percent}%")
+    except ImportError:
+        print(f"{RED}psutil package not installed. Run 'pip install psutil'")
+    except Exception as e:
+        print(f"{RED}monitor error: {e}")
+
+def zip_command(args):
+    if len(args) < 2:
+        print("zip: usage: zip <output> <file1> [file2 ...]")
+        return
+    
+    output = args[0]
+    files = args[1:]
+    
+    try:
+        if output.endswith('.zip'):
+            with zipfile.ZipFile(output, 'w') as zipf:
+                for file in files:
+                    if os.path.isdir(file):
+                        for root, dirs, files in os.walk(file):
+                            for f in files:
+                                zipf.write(os.path.join(root, f))
+                    else:
+                        zipf.write(file)
+        elif output.endswith('.tar.gz') or output.endswith('.tgz'):
+            with tarfile.open(output, 'w:gz') as tarf:
+                for file in files:
+                    tarf.add(file)
+        elif output.endswith('.tar'):
+            with tarfile.open(output, 'w:') as tarf:
+                for file in files:
+                    tarf.add(file)
+        else:
+            print(f"{RED}Unsupported output format: {output}")
+            return
+            
+        print(f"{GREEN}Created {output} successfully")
+    except Exception as e:
+        print(f"{RED}Error creating archive: {e}")
+
+def unzip_command(args):
+    if len(args) < 1:
+        print("unzip: usage: unzip <archive> [destination]")
+        return
+    
+    archive = args[0]
+    destination = args[1] if len(args) > 1 else os.path.splitext(archive)[0]
+    
+    try:
+        if archive.endswith('.zip'):
+            with zipfile.ZipFile(archive, 'r') as zip_ref:
+                zip_ref.extractall(destination)
+        elif archive.endswith('.tar.gz') or archive.endswith('.tgz'):
+            with tarfile.open(archive, 'r:gz') as tar_ref:
+                tar_ref.extractall(destination)
+        elif archive.endswith('.tar'):
+            with tarfile.open(archive, 'r:') as tar_ref:
+                tar_ref.extractall(destination)
+        elif archive.endswith('.rar'):
+            try:
+                import rarfile
+                with rarfile.RarFile(archive) as rar_ref:
+                    rar_ref.extractall(destination)
+            except ImportError:
+                print(f"{RED}rarfile package not installed. Run 'pip install rarfile'")
+                return
+        else:
+            print(f"{RED}Unsupported archive format: {archive}")
+            return
+            
+        print(f"{GREEN}Extracted {archive} to {destination}")
+    except Exception as e:
+        print(f"{RED}Error extracting {archive}: {e}")
+
+def search_command(args):
+    if len(args) < 2:
+        print("search: usage: search <directory> <pattern>")
+        return
+    
+    directory, pattern = args[0], args[1]
+    try:
+        for root, dirs, files in os.walk(directory):
+            for name in files + dirs:
+                if fnmatch.fnmatch(name, pattern):
+                    print(os.path.join(root, name))
+    except Exception as e:
+        print(f"{RED}search error: {e}")
+
+def checksum_command(args):
+    if len(args) < 1:
+        print("checksum: usage: checksum <file> [algorithm]")
+        print("Available algorithms: md5, sha1, sha256 (default)")
+        return
+    
+    file = args[0]
+    algorithm = args[1] if len(args) > 1 else "sha256"
+    
+    try:
+        hash_func = getattr(hashlib, algorithm)()
+        with open(file, 'rb') as f:
+            for chunk in iter(lambda: f.read(4096), b""):
+                hash_func.update(chunk)
+        print(f"{algorithm.upper()} checksum: {hash_func.hexdigest()}")
+    except AttributeError:
+        print(f"{RED}Invalid algorithm: {algorithm}")
+    except Exception as e:
+        print(f"{RED}Error calculating checksum: {e}")
+
+def convert_command(args):
+    if len(args) < 2:
+        print("convert: usage: convert <input> <output>")
+        print("Supported conversions: txt -> md, md -> html, json -> yaml, yaml -> json")
+        return
+    
+    input_file, output_file = args[0], args[1]
+    
+    try:
+        if input_file.endswith('.txt') and output_file.endswith('.md'):
+            with open(input_file, 'r') as infile, open(output_file, 'w') as outfile:
+                for line in infile:
+                    outfile.write(line)
+            print(f"{GREEN}Converted {input_file} to {output_file}")
+        elif input_file.endswith('.md') and output_file.endswith('.html'):
+            try:
+                import markdown
+                with open(input_file, 'r') as infile:
+                    html = markdown.markdown(infile.read())
+                with open(output_file, 'w') as outfile:
+                    outfile.write(html)
+                print(f"{GREEN}Converted {input_file} to {output_file}")
+            except ImportError:
+                print(f"{RED}markdown package not installed. Run 'pip install markdown'")
+        elif (input_file.endswith('.json') and output_file.endswith('.yaml')) or \
+             (input_file.endswith('.yaml') and output_file.endswith('.json')):
+            try:
+                import yaml
+                with open(input_file, 'r') as infile:
+                    if input_file.endswith('.json'):
+                        data = json.load(infile)
+                        with open(output_file, 'w') as outfile:
+                            yaml.dump(data, outfile)
+                    else:
+                        data = yaml.safe_load(infile)
+                        with open(output_file, 'w') as outfile:
+                            json.dump(data, outfile, indent=2)
+                print(f"{GREEN}Converted {input_file} to {output_file}")
+            except ImportError:
+                print(f"{RED}yaml package not installed. Run 'pip install pyyaml'")
+        else:
+            print(f"{RED}Unsupported conversion: {input_file} -> {output_file}")
+    except Exception as e:
+        print(f"{RED}Error during conversion: {e}")
+
+def fileinfo_command(args):
+    if len(args) < 1:
+        print("fileinfo: usage: fileinfo <file>")
+        return
+    
+    file = args[0]
+    
+    try:
+        stat = os.stat(file)
+        print(f"{CYAN}File Information:")
+        print(f"{YELLOW}Path: {os.path.abspath(file)}")
+        print(f"{YELLOW}Size: {stat.st_size} bytes")
+        print(f"{YELLOW}Created: {datetime.datetime.fromtimestamp(stat.st_ctime)}")
+        print(f"{YELLOW}Modified: {datetime.datetime.fromtimestamp(stat.st_mtime)}")
+        print(f"{YELLOW}Permissions: {oct(stat.st_mode)[-3:]}")
+    except Exception as e:
+        print(f"{RED}Error getting file info: {e}")
+
+def memory_usage_command(args):
+    try:
+        mem = psutil.virtual_memory()
+        swap = psutil.swap_memory()
+        
+        print(f"{CYAN}Memory Usage:")
+        print(f"{YELLOW}Total: {mem.total // (1024 * 1024)} MB")
+        print(f"{YELLOW}Available: {mem.available // (1024 * 1024)} MB")
+        print(f"{YELLOW}Used: {mem.used // (1024 * 1024)} MB")
+        print(f"{YELLOW}Percentage: {mem.percent}%")
+        
+        print(f"\n{CYAN}Swap Usage:")
+        print(f"{YELLOW}Total: {swap.total // (1024 * 1024)} MB")
+        print(f"{YELLOW}Used: {swap.used // (1024 * 1024)} MB")
+        print(f"{YELLOW}Free: {swap.free // (1024 * 1024)} MB")
+        print(f"{YELLOW}Percentage: {swap.percent}%")
+    except Exception as e:
+        print(f"{RED}Error getting memory usage: {e}")
+
+def cpu_temp_command(args):
+    try:
+        temps = psutil.sensors_temperatures()
+        if not temps:
+            print(f"{YELLOW}No temperature sensors found")
+            return
+            
+        print(f"{CYAN}CPU Temperatures:")
+        for name, entries in temps.items():
+            for entry in entries:
+                print(f"{YELLOW}{entry.label or name}: {entry.current}°C")
+    except Exception as e:
+        print(f"{RED}Error getting CPU temperature: {e}")
+
+def network_info_command(args):
+    try:
+        print(f"{CYAN}Network Information:")
+        addrs = psutil.net_if_addrs()
+        stats = psutil.net_if_stats()
+        
+        for interface_name, interface_addresses in addrs.items():
+            print(f"{YELLOW}Interface: {interface_name}")
+            for address in interface_addresses:
+                if str(address.family) == 'AddressFamily.AF_INET':
+                    print(f"  IP Address: {address.address}")
+                    print(f"  Netmask: {address.netmask}")
+                    print(f"  Broadcast IP: {address.broadcast}")
+                elif str(address.family) == 'AddressFamily.AF_PACKET':
+                    print(f"  MAC Address: {address.address}")
+                    print(f"  Netmask: {address.netmask}")
+                    print(f"  Broadcast MAC: {address.broadcast}")
+            
+            if interface_name in stats:
+                print(f"  Is Up: {stats[interface_name].isup}")
+                print(f"  Speed: {stats[interface_name].speed}Mbps")
+            print()
+    except Exception as e:
+        print(f"{RED}Error getting network info: {e}")
+
+def disk_usage_command(args):
+    path = args[0] if args else os.getcwd()
+    try:
+        usage = psutil.disk_usage(path)
+        print(f"{CYAN}Disk Usage for {path}:")
+        print(f"{YELLOW}Total: {usage.total // (1024 * 1024)} MB")
+        print(f"{YELLOW}Used: {usage.used // (1024 * 1024)} MB")
+        print(f"{YELLOW}Free: {usage.free // (1024 * 1024)} MB")
+        print(f"{YELLOW}Percentage Used: {usage.percent}%")
+    except Exception as e:
+        print(f"{RED}Error getting disk usage: {e}")
+
+register_command("disk", disk_usage_command)
+register_command("netinfo", network_info_command)
+register_command("cputemp", cpu_temp_command)
+register_command("memory", memory_usage_command)
+register_command("checksum", checksum_command)
+register_command("convert", convert_command)
+register_command("fileinfo", fileinfo_command)
+register_command("zip", zip_command)
+register_command("unzip", unzip_command)
+register_command("search", search_command)
+register_command("monitor", monitor_command)
+register_command("netinfo", netinfo_command)
+register_command("diff", diff_command)
 register_command("alias", alias_command)
 register_command("unalias", unalias_command)
 register_command("ps", ps_command)
