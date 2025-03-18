@@ -41,11 +41,12 @@ def clear():
     os.system('cls' if os.name == 'nt' else 'clear')
 
 clear()
+
 def load_module(module_name, alias):
-    mod = importlib.import_module(module_name)
-    loaded_modules[key] = mod
     try:
+        mod = importlib.import_module(module_name)
         key = alias if alias else module_name.split('.')[0]
+        loaded_modules[key] = mod
 
     except Exception as e:
         print(f"Error loading {module_name}: {e}")
