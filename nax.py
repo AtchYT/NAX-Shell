@@ -1,6 +1,8 @@
 import os
-import time                                                                          import importlib
-import threading                                                                     from tqdm import tqdm
+import time
+import importlib
+import threading
+from tqdm import tqdm
 from colorama import init, Fore
 
 modules_parallel = [
@@ -39,9 +41,11 @@ def clear():
     os.system('cls' if os.name == 'nt' else 'clear')
 
 clear()
-                                                                                     def load_module(module_name, alias):
-    try:                                                                                     mod = importlib.import_module(module_name)
-        key = alias if alias else module_name.split('.')[0]                                  loaded_modules[key] = mod
+def load_module(module_name, alias):
+    mod = importlib.import_module(module_name)
+    loaded_modules[key] = mod
+    try:
+        key = alias if alias else module_name.split('.')[0]
 
     except Exception as e:
         print(f"Error loading {module_name}: {e}")
