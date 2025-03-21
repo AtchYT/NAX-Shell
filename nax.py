@@ -122,6 +122,71 @@ AUTH_FILE = os.path.join(nax_dir, ".nax_shell_auth")
 AUTH_DURATION = 30 * 60
 PROCESSOR_NAME = None
 
+def verify_script_integrity():
+    def check_hash_in_background():
+        try:
+            script_path = os.path.abspath(__file__)
+            with open(script_path, 'rb') as f:
+                script_content = f.read()
+                current_hash = hashlib.sha256(script_content).hexdigest()
+            
+            url = "https://atchyt.github.io/api.html"
+            with urllib_request.urlopen(url) as response:
+                content = response.read().decode('utf-8')
+            
+            match = re.search(r'<div id="script_hash"[^>]*>(.*?)</div>', content, re.DOTALL)
+            if match:
+                remote_hash = match.group(1).strip()
+                
+                if remote_hash == "hash" or not remote_hash:
+                    log_path = os.path.join(nax_dir, ".nax_hash_status")
+                    with open(log_path, 'w') as f:
+                        f.write(f"Time: {datetime.datetime.now()}\n")
+                        f.write("Status: No valid hash found on the server\n")
+                        f.write(f"Current script hash: {current_hash}\n")
+                    
+                    print(f"\n{YELLOW}Note: Script integrity check skipped - no valid hash found on server")
+                    print(f"{YELLOW}Current script hash: {current_hash}")
+                
+                elif remote_hash != current_hash:
+                    print(f"\n{RED}WARNING: Script integrity check failed!")
+                    print(f"{RED}The running script may have been modified.")
+                    print(f"{RED}Expected hash: {remote_hash}")
+                    print(f"{RED}Current hash: {current_hash}")
+                    
+                    log_path = os.path.join(nax_dir, ".nax_hash_failed")
+                    with open(log_path, 'w') as f:
+                        f.write(f"Time: {datetime.datetime.now()}\n")
+                        f.write(f"Expected hash: {remote_hash}\n")
+                        f.write(f"Current hash: {current_hash}\n")
+                        f.write(f"Script path: {script_path}\n")
+                
+                else:
+                    log_path = os.path.join(nax_dir, ".nax_hash_sucess")
+                    with open(log_path, 'w') as f:
+                        f.write(f"Time: {datetime.datetime.now()}\n")
+                        f.write("Status: Script integrity verified successfully\n")
+            
+            else:
+                print(f"\n{YELLOW}Note: Script integrity check skipped - hash element not found in API")
+                log_path = os.path.join(nax_dir, ".nax_hash_status")
+                with open(log_path, 'w') as f:
+                    f.write(f"Time: {datetime.datetime.now()}\n")
+                    f.write("Status: Hash element not found in HTML\n")
+                    f.write(f"Current script hash: {current_hash}\n")
+            
+        except Exception as e:
+            log_path = os.path.join(nax_dir, ".nax_hash_error")
+            with open(log_path, 'w') as f:
+                f.write(f"Time: {datetime.datetime.now()}\n")
+                f.write(f"Error: {str(e)}\n")
+            
+            print(f"\n{YELLOW}Note: Script integrity check failed with error: {str(e)}")
+    
+    check_thread = threading.Thread(target=check_hash_in_background)
+    check_thread.daemon = True
+    check_thread.start()
+
 def get_api_url():
     def download_in_background():
         try:
@@ -1503,6 +1568,7 @@ def main():
     load_aliases()
     update_completer()
     get_api_url()
+    verify_script_integrity()
 
     while True:
         try:
