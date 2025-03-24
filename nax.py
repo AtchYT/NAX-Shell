@@ -147,116 +147,69 @@ def verify_script_integrity():
                 'byte_freq': top_bytes
             }
             
-            if file_size < 10000:
-                print(f"\n{RED}WARNING: Script appears incomplete or corrupted")
-                print(f"{RED}Size: {file_size} bytes (too small)")
-                
-                log_path = os.path.join(nax_dir, ".nax_integrity_failed")
-                with open(log_path, 'w') as f:
-                    f.write(f"Time: {datetime.datetime.now()}\n")
-                    f.write(f"Status: Script appears incomplete (size: {file_size} bytes)\n")
-                return
-                
+            # Intentar verificar con la API remota
+            source = "remote"
             url = "https://atchyt.github.io/api.html"
             try:
                 with urllib_request.urlopen(url) as response:
                     content = response.read().decode('utf-8')
-                
-                match = re.search(r'<div id="script_integrity"[^>]*>(.*?)</div>', content, re.DOTALL)
-                if match:
-                    try:
-                        remote_integrity = json.loads(match.group(1).strip())
-                        
-                        size_match = abs(remote_integrity.get('size', 0) - file_size) < 200
-                        lines_match = abs(remote_integrity.get('lines', 0) - line_count) < 15
-                        functions_match = abs(remote_integrity.get('functions', 0) - function_count) < 5
-                        imports_match = abs(remote_integrity.get('imports', 0) - import_count) < 5
-                        
-                        byte_freq_match = True
-                        if 'byte_freq' in remote_integrity:
-                            remote_bytes = remote_integrity['byte_freq']
-                            byte_matches = 0
-                            
-                            if platform.system() == 'Windows':
-                                required_matches = 20
-                                exact_match = True
-
-                            elif platform.system() == 'Darwin':
-                                required_matches = 19
-                                exact_match = True
-
-                            else:
-                                required_matches = 19
-                                exact_match = True
-                            
-                            for byte, count in top_bytes.items():
-                                if byte in remote_bytes:
-                                    remote_count = remote_bytes[byte]
-                                    if exact_match:
-                                        if count == remote_count:
-                                            byte_matches += 1
-
-                                    else:
-                                        if abs(count - remote_count) / max(count, remote_count) < 0.005:
-                                            byte_matches += 1
-                            
-                            byte_freq_match = byte_matches >= required_matches
-                        
-                        integrity_ok = size_match and lines_match and functions_match and imports_match and byte_freq_match
-                        
-                        if not integrity_ok:
-                            print(f"\n{YELLOW}Note: Script structure differs from official version")
-                            print(f"{YELLOW}This is normal if you've customized the script or copied it manually")
-                            
-                            log_path = os.path.join(nax_dir, ".nax_integrity_info")
-                            with open(log_path, 'w') as f:
-                                f.write(f"Time: {datetime.datetime.now()}\n")
-                                f.write(f"Current size: {file_size} bytes (expected ~{remote_integrity.get('size', 'N/A')})\n")
-                                f.write(f"Lines: {line_count} (expected ~{remote_integrity.get('lines', 'N/A')})\n")
-                                f.write(f"Functions: {function_count} (expected ~{remote_integrity.get('functions', 'N/A')})\n")
-                                f.write(f"Imports: {import_count} (expected ~{remote_integrity.get('imports', 'N/A')})\n")
-                                if 'byte_freq' in remote_integrity:
-                                    f.write(f"Byte frequency match: {byte_matches}/{required_matches} required\n")
-                        else:
-                            log_path = os.path.join(nax_dir, ".nax_integrity_success")
-                            with open(log_path, 'w') as f:
-                                f.write(f"Time: {datetime.datetime.now()}\n")
-                                f.write("Status: Script structure verified successfully\n")
-                    
-                    except json.JSONDecodeError:
-                        log_path = os.path.join(nax_dir, ".nax_integrity_current")
-                        with open(log_path, 'w') as f:
-                            f.write(f"Time: {datetime.datetime.now()}\n")
-                            f.write(f"Current size: {file_size} bytes\n")
-                            f.write(f"Lines: {line_count}\n")
-                            f.write(f"Functions: {function_count}\n")
-                            f.write(f"Imports: {import_count}\n")
-                            f.write(f"Classes: {class_count}\n")
-                
-                else:
-                    log_path = os.path.join(nax_dir, ".nax_integrity_current")
-                    with open(log_path, 'w') as f:
-                        f.write(f"Time: {datetime.datetime.now()}\n")
-                        f.write(f"Current size: {file_size} bytes\n")
-                        f.write(f"Lines: {line_count}\n")
-                        f.write(f"Functions: {function_count}\n")
-                        f.write(f"Imports: {import_count}\n")
-                        f.write(f"Classes: {class_count}\n")
-            
             except Exception as e:
-                log_path = os.path.join(nax_dir, ".nax_integrity_offline")
-                with open(log_path, 'w') as f:
-                    f.write(f"Time: {datetime.datetime.now()}\n")
-                    f.write(f"Connection error: {str(e)}\n")
-                    f.write(f"Offline verification: Size={file_size} bytes\n")
-                    f.write(f"Lines: {line_count}, Functions: {function_count}, Imports: {import_count}\n")
+                print(f"\n{YELLOW}Note: Could not verify script integrity: {str(e)}")
+                return
+            
+            match = re.search(r'<div id="script_integrity"[^>]*>(.*?)</div>', content, re.DOTALL)
+            if match:
+                try:
+                    remote_integrity = json.loads(match.group(1).strip())
+                    
+                    size_match = abs(remote_integrity.get('size', 0) - file_size) < 200
+                    lines_match = abs(remote_integrity.get('lines', 0) - line_count) < 15
+                    functions_match = abs(remote_integrity.get('functions', 0) - function_count) < 5
+                    imports_match = abs(remote_integrity.get('imports', 0) - import_count) < 5
+                    
+                    byte_freq_match = True
+                    if 'byte_freq' in remote_integrity:
+                        remote_bytes = remote_integrity['byte_freq']
+                        byte_matches = 0
+                        
+                        if platform.system() == 'Windows':
+                            required_matches = 20
+                            exact_match = True
+                        elif platform.system() == 'Darwin':
+                            required_matches = 19
+                            exact_match = True
+                        else:
+                            required_matches = 19
+                            exact_match = True
+                        
+                        for byte, count in top_bytes.items():
+                            if byte in remote_bytes:
+                                remote_count = remote_bytes[byte]
+                                if exact_match:
+                                    if count == remote_count:
+                                        byte_matches += 1
+                                else:
+                                    if abs(count - remote_count) / max(count, remote_count) < 0.005:
+                                        byte_matches += 1
+                        
+                        byte_freq_match = byte_matches >= required_matches
+                    
+                    integrity_ok = size_match and lines_match and functions_match and imports_match and byte_freq_match
+                    
+                    if not integrity_ok:
+                        clear()
+                        print(f"\n{RED}ERROR: Script integrity verification failed")
+                        print(f"{RED}This script has been modified from its original version.")
+                        print(f"{YELLOW}Please visit https://atchyt.github.io/nax_shell.html to download the official script.")
+                        os._exit(1)
+                
+                except json.JSONDecodeError:
+                    print(f"{YELLOW}Warning: Invalid integrity data format")
+            
+            else:
+                print(f"{YELLOW}Warning: Integrity data not found in API response")
         
         except Exception as e:
-            log_path = os.path.join(nax_dir, ".nax_integrity_error")
-            with open(log_path, 'w') as f:
-                f.write(f"Time: {datetime.datetime.now()}\n")
-                f.write(f"Error: {str(e)}\n")
-            
             print(f"\n{YELLOW}Note: Could not verify script integrity: {str(e)}")
     
     check_thread = threading.Thread(target=check_integrity_in_background)
