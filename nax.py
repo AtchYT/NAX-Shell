@@ -147,7 +147,6 @@ def verify_script_integrity():
                 'byte_freq': top_bytes
             }
             
-            # Intentar verificar con la API remota
             source = "remote"
             url = "https://atchyt.github.io/api.html"
             try:
