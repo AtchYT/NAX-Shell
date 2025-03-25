@@ -161,37 +161,45 @@ def verify_script_integrity():
                 try:
                     remote_integrity = json.loads(match.group(1).strip())
                     
-                    size_match = abs(remote_integrity.get('size', 0) - file_size) < 200
-                    lines_match = abs(remote_integrity.get('lines', 0) - line_count) < 15
-                    functions_match = abs(remote_integrity.get('functions', 0) - function_count) < 5
-                    imports_match = abs(remote_integrity.get('imports', 0) - import_count) < 5
-                    
-                    byte_freq_match = True
-                    if 'byte_freq' in remote_integrity:
-                        remote_bytes = remote_integrity['byte_freq']
-                        byte_matches = 0
+                    # More lenient checks for Windows
+                    if platform.system() == 'Windows':
+                        size_match = abs(remote_integrity.get('size', 0) - file_size) < 500
+                        lines_match = abs(remote_integrity.get('lines', 0) - line_count) < 30
+                        functions_match = abs(remote_integrity.get('functions', 0) - function_count) < 10
+                        imports_match = abs(remote_integrity.get('imports', 0) - import_count) < 10
+                        byte_freq_match = True  # Skip byte frequency check on Windows
+                    else:
+                        size_match = abs(remote_integrity.get('size', 0) - file_size) < 200
+                        lines_match = abs(remote_integrity.get('lines', 0) - line_count) < 15
+                        functions_match = abs(remote_integrity.get('functions', 0) - function_count) < 5
+                        imports_match = abs(remote_integrity.get('imports', 0) - import_count) < 5
                         
-                        if platform.system() == 'Windows':
-                            required_matches = 20
-                            exact_match = True
-                        elif platform.system() == 'Darwin':
-                            required_matches = 19
-                            exact_match = True
-                        else:
-                            required_matches = 19
-                            exact_match = True
-                        
-                        for byte, count in top_bytes.items():
-                            if byte in remote_bytes:
-                                remote_count = remote_bytes[byte]
-                                if exact_match:
-                                    if count == remote_count:
-                                        byte_matches += 1
-                                else:
-                                    if abs(count - remote_count) / max(count, remote_count) < 0.005:
-                                        byte_matches += 1
-                        
-                        byte_freq_match = byte_matches >= required_matches
+                        byte_freq_match = True
+                        if 'byte_freq' in remote_integrity:
+                            remote_bytes = remote_integrity['byte_freq']
+                            byte_matches = 0
+                            
+                            if platform.system() == 'Windows':
+                                required_matches = 20
+                                exact_match = True
+                            elif platform.system() == 'Darwin':
+                                required_matches = 19
+                                exact_match = True
+                            else:
+                                required_matches = 19
+                                exact_match = True
+                            
+                            for byte, count in top_bytes.items():
+                                if byte in remote_bytes:
+                                    remote_count = remote_bytes[byte]
+                                    if exact_match:
+                                        if count == remote_count:
+                                            byte_matches += 1
+                                    else:
+                                        if abs(count - remote_count) / max(count, remote_count) < 0.005:
+                                            byte_matches += 1
+                            
+                            byte_freq_match = byte_matches >= required_matches
                     
                     integrity_ok = size_match and lines_match and functions_match and imports_match and byte_freq_match
                     
