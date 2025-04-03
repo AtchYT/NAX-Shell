@@ -85,6 +85,7 @@ for mod_name, alias in modules_sequential:
         mod = importlib.import_module(mod_name)
         key = alias if alias else mod_name.split('.')[0]
         loaded_modules[key] = mod
+
     except Exception as e:
         print(f"Error loading {mod_name}: {e}")
 
@@ -112,7 +113,48 @@ HISTORY_FILE = os.path.join(nax_dir, ".nax_shell_history")
 ALIAS_FILE = os.path.join(nax_dir, ".nax_shell_aliases")
 AUTH_FILE = os.path.join(nax_dir, ".nax_shell_auth")
 AUTH_DURATION = 30 * 60
+AUTH_LAST_ACTIVE = None
 PROCESSOR_NAME = None
+
+def update_remaining_auth_time():
+    try:
+        if os.path.exists(AUTH_FILE) and AUTH_LAST_ACTIVE is not None:
+            with open(AUTH_FILE, "r") as f:
+                data = f.read().strip()
+                
+            parts = data.split(":")
+            if len(parts) < 3:
+                return
+                
+            stored_hash, last_timestamp, remaining_time = parts
+            
+            current_time = datetime.datetime.now().timestamp()
+            session_duration = current_time - AUTH_LAST_ACTIVE
+            
+            new_remaining = max(0, float(remaining_time) - session_duration)
+            
+            with open(AUTH_FILE, "w") as f:
+                f.write(f"{stored_hash}:{current_time}:{new_remaining}")
+                
+    except Exception as e:
+        print(f"{RED}Auth time update error: {e}")
+        pass
+
+def update_auth_timestamp():
+    try:
+        system_user = getpass.getuser()
+        user_hash = hashlib.sha256(system_user.encode()).hexdigest()
+        current_time = datetime.datetime.now().timestamp()
+        
+        global AUTH_LAST_ACTIVE
+        AUTH_LAST_ACTIVE = current_time
+        
+        with open(AUTH_FILE, "w") as f:
+            f.write(f"{user_hash}:{current_time}:{AUTH_DURATION}")
+            
+    except Exception as e:
+        print(f"{RED}Auth timestamp update error: {e}")
+        pass
 
 def verify_script_integrity():
     def check_integrity_in_background():
@@ -144,6 +186,7 @@ def verify_script_integrity():
             try:
                 with urllib_request.urlopen(url) as response:
                     content = response.read().decode('utf-8')
+
             except Exception as e:
                 print(f"\n{YELLOW}Note: Could not verify script integrity: {str(e)}")
                 return
@@ -200,6 +243,7 @@ def verify_script_integrity():
                         print(f"{RED}Script integrity verification failed")
                         print(f"{RED}This script has been modified from its original version.")
                         print(f"{YELLOW}Please visit https://atchyt.github.io/nax_shell.html to download the official script.")
+                        update_remaining_auth_time()
                         os._exit(1)
                 
                 except json.JSONDecodeError:
@@ -293,7 +337,7 @@ def install_requirements():
         
         try:
             import importlib.metadata as metadata
-            
+
         except ImportError:
             import importlib_metadata as metadata
 
@@ -384,9 +428,11 @@ def execute_single_command(cmd):
         try:
             commands[command](args)
             return True
+
         except Exception as e:
             print(f"{RED}Error executing '{command}': {str(e)}")
             return False
+
     else:
         print(f"{RED}{command}: command not found")
         return False
@@ -546,13 +592,16 @@ def sysinfo_command(args):
                 boot_time = psutil.boot_time()
                 uptime_seconds = time.time() - boot_time
                 return uptime_seconds
+
             except ImportError:
                 return None
+
         elif platform.system() in ["Linux", "Darwin"]:
             try:
                 with open('/proc/uptime', 'r') as f:
                     uptime_seconds = float(f.readline().split()[0])
                     return uptime_seconds
+
             except (FileNotFoundError, PermissionError):
                 try:
                     uptime_output = subprocess.check_output(['uptime', '-p']).decode('utf-8').strip()
@@ -569,6 +618,7 @@ def sysinfo_command(args):
                             minutes = int(uptime_str.split(" minute")[0])
                         uptime_seconds = days * 86400 + hours * 3600 + minutes * 60
                         return uptime_seconds
+
                 except Exception:
                     return None
         else:
@@ -593,6 +643,7 @@ def sysinfo_command(args):
             width = user32.GetSystemMetrics(0)
             height = user32.GetSystemMetrics(1)
             resolution_info = f"{YELLOW}Resolution: {width}x{height}"
+
         except:
             resolution_info = f"{YELLOW}Resolution: Not available"
     elif os.name == 'posix':
@@ -604,6 +655,7 @@ def sysinfo_command(args):
                     resolution = line.split(':')[1].strip()
                     resolution_info = f"{YELLOW}Resolution: {resolution}"
                     break
+
         except:
             resolution_info = f"{YELLOW}Resolution: Not available"
 
@@ -631,6 +683,7 @@ def help_command(args):
     print("\nUse 'exit' to quit the terminal")
 
 def exit_command(args):
+    update_remaining_auth_time()
     raise SystemExit
 
 def logout_command(args):
@@ -664,14 +717,17 @@ def get_api_password():
 
             except json.JSONDecodeError as e:
                 print(f"{RED}Invalid user data format: {e}")
+                update_remaining_auth_time()
                 sys.exit(1)
 
         else:
             print(f"{RED}User data not found in API response")
+            update_remaining_auth_time()
             sys.exit(1)
 
     except Exception as e:
         print(f"{RED}API Error: {e}")
+        update_remaining_auth_time()
         sys.exit(1)
 
 def is_recent_auth():
@@ -680,41 +736,67 @@ def is_recent_auth():
             with open(AUTH_FILE, "r") as f:
                 data = f.read().strip()
                 if ":" not in data:
-
                     return False
-                stored_hash, timestamp_str = data.split(":")
-                last_auth = float(timestamp_str)
+                
+                parts = data.split(":")
+                if len(parts) < 3:
+                    return False
+                    
+                stored_hash, last_timestamp, remaining_time = parts
+                last_auth = float(last_timestamp)
+                remaining_seconds = float(remaining_time)
+                
                 system_user = getpass.getuser()
                 user_hash = hashlib.sha256(system_user.encode()).hexdigest()
-
-                if stored_hash == user_hash and (datetime.datetime.now().timestamp() - last_auth) < AUTH_DURATION:
+                
+                if stored_hash == user_hash and remaining_seconds > 0:
+                    global AUTH_LAST_ACTIVE
+                    AUTH_LAST_ACTIVE = datetime.datetime.now().timestamp()
                     return True
 
-    except Exception:
+    except Exception as e:
+        print(f"{RED}Auth error: {e}")
         pass
 
     return False
-
-def update_auth_timestamp():
+    
+def update_remaining_auth_time():
     try:
-        system_user = getpass.getuser()
-        user_hash = hashlib.sha256(system_user.encode()).hexdigest()
-        with open(AUTH_FILE, "w") as f:
-            f.write(f"{user_hash}:{datetime.datetime.now().timestamp()}")
-
-    except Exception:
+        if os.path.exists(AUTH_FILE) and AUTH_LAST_ACTIVE is not None:
+            with open(AUTH_FILE, "r") as f:
+                data = f.read().strip()
+                
+            parts = data.split(":")
+            if len(parts) < 3:
+                return
+                
+            stored_hash, last_timestamp, remaining_time = parts
+            
+            current_time = datetime.datetime.now().timestamp()
+            session_duration = current_time - AUTH_LAST_ACTIVE
+            
+            new_remaining = max(0, float(remaining_time) - session_duration)
+            
+            with open(AUTH_FILE, "w") as f:
+                f.write(f"{stored_hash}:{current_time}:{new_remaining}")
+                
+    except Exception as e:
+        print(f"{RED}Auth time update error: {e}")
         pass
 
 def login():
     try:
         if is_recent_auth():
             return True
+
         api_password = get_api_password()
 
         if not api_password:
             print(f"{RED}Error: Cannot get the user from the API")
             return False
 
+        print(f"{CYAN}{fitNAXShell.renderText('NAX-Shell')}")
+        print(f"{CYAN}{fitNAXVers.renderText('v 1.0.0')}")
         print(f"{ORANGE}Authentication Required")
         current_user = getpass.getuser()
 
@@ -728,6 +810,7 @@ def login():
                     update_auth_timestamp()
                     return True
                 print(f"{RED}Sorry, try again.")
+
             except KeyboardInterrupt:
                 print(f"\n{RED}Sorry, try again.")
                 continue
@@ -1910,15 +1993,20 @@ def main():
     get_api_url()
     verify_script_integrity()
 
-    while True:
-        try:
-            process_command(session.prompt())
+    try:
+        while True:
+            try:
+                process_command(session.prompt())
 
-        except (KeyboardInterrupt, EOFError, SystemExit):
-            break
+            except (KeyboardInterrupt, EOFError, SystemExit):
+                update_remaining_auth_time()
+                break
 
-        except Exception as e:
-            print(f"{RED}An error occurred: {str(e)}")
+            except Exception as e:
+                print(f"{RED}An error occurred: {str(e)}")
+
+    finally:
+        update_remaining_auth_time()
 
 if __name__ == "__main__":    
     clear()
