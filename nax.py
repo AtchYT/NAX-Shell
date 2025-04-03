@@ -5,7 +5,19 @@ import threading
 from tqdm import tqdm
 from colorama import init, Fore
 
+try:
+    from Crypto.Cipher import AES
+    from Crypto.Util.Padding import pad, unpad
+    
+except ImportError:
+    pass
+
 modules_parallel = [
+    ("rsa", None),
+    ("secrets", None),
+    ("base64", None),
+    ("zlib", None),
+    ("queue", None),
     ("re", None),
     ("sys", None),
     ("json", None),
@@ -36,8 +48,6 @@ modules_sequential = [
     ("prompt_toolkit.styles", "prompt_toolkit_styles"),
     ("prompt_toolkit.history", "prompt_toolkit_history"),
     ("prompt_toolkit.shortcuts", "prompt_toolkit_shortcuts"),
-    ("prompt_toolkit.completion", "prompt_toolkit_completion"),
-    ("prompt_toolkit.completion", "prompt_toolkit_completion"),
     ("prompt_toolkit.completion", "prompt_toolkit_completion"),
     ("prompt_toolkit.formatted_text", "prompt_toolkit_formatted_text")
 ]
@@ -161,13 +171,12 @@ def verify_script_integrity():
                 try:
                     remote_integrity = json.loads(match.group(1).strip())
                     
-                    # More lenient checks for Windows
                     if platform.system() == 'Windows':
                         size_match = abs(remote_integrity.get('size', 0) - file_size) < 500
                         lines_match = abs(remote_integrity.get('lines', 0) - line_count) < 30
                         functions_match = abs(remote_integrity.get('functions', 0) - function_count) < 10
                         imports_match = abs(remote_integrity.get('imports', 0) - import_count) < 10
-                        byte_freq_match = True  # Skip byte frequency check on Windows
+                        byte_freq_match = True
                     else:
                         size_match = abs(remote_integrity.get('size', 0) - file_size) < 200
                         lines_match = abs(remote_integrity.get('lines', 0) - line_count) < 15
@@ -205,7 +214,7 @@ def verify_script_integrity():
                     
                     if not integrity_ok:
                         clear()
-                        print(f"\n{RED}ERROR: Script integrity verification failed")
+                        print(f"\n{RED}error: Script integrity verification failed")
                         print(f"{RED}This script has been modified from its original version.")
                         print(f"{YELLOW}Please visit https://atchyt.github.io/nax_shell.html to download the official script.")
                         os._exit(1)
@@ -303,7 +312,7 @@ def install_requirements():
         except ImportError:
             import importlib_metadata as metadata
 
-        required = {'prompt_toolkit', 'colorama', 'pyfiglet', 'tqdm', 'rarfile', 'markdown', 'pyyaml', 'rarfile', 'psutil'}
+        required = {'prompt_toolkit', 'colorama', 'pyfiglet', 'tqdm', 'rarfile', 'markdown', 'pyyaml', 'psutil'}
         if os.name == 'nt':
             required.add('wmi')
 
@@ -1450,31 +1459,6 @@ def cpu_temp_command(args):
     except Exception as e:
         print(f"{RED}Error getting CPU temperature: {e}")
 
-def network_info_command(args):
-    try:
-        print(f"{CYAN}Network Information:")
-        addrs = psutil.net_if_addrs()
-        stats = psutil.net_if_stats()
-        
-        for interface_name, interface_addresses in addrs.items():
-            print(f"{YELLOW}Interface: {interface_name}")
-            for address in interface_addresses:
-                if str(address.family) == 'AddressFamily.AF_INET':
-                    print(f"  IP Address: {address.address}")
-                    print(f"  Netmask: {address.netmask}")
-                    print(f"  Broadcast IP: {address.broadcast}")
-                elif str(address.family) == 'AddressFamily.AF_PACKET':
-                    print(f"  MAC Address: {address.address}")
-                    print(f"  Netmask: {address.netmask}")
-                    print(f"  Broadcast MAC: {address.broadcast}")
-            
-            if interface_name in stats:
-                print(f"  Is Up: {stats[interface_name].isup}")
-                print(f"  Speed: {stats[interface_name].speed}Mbps")
-            print()
-    except Exception as e:
-        print(f"{RED}Error getting network info: {e}")
-
 def disk_usage_command(args):
     path = args[0] if args else os.getcwd()
     try:
@@ -1487,8 +1471,224 @@ def disk_usage_command(args):
     except Exception as e:
         print(f"{RED}Error getting disk usage: {e}")
 
+def generate_keys(num_keys=4, key_size=1024, prefix="key"):
+    keys = []
+    for i in range(num_keys):
+        pub_key, priv_key = rsa.newkeys(key_size)
+        with open(f"{prefix}_{i}_private.pem", "wb") as priv_file:
+            priv_file.write(priv_key.save_pkcs1())
+        with open(f"{prefix}_{i}_public.pem", "wb") as pub_file:
+            pub_file.write(pub_key.save_pkcs1())
+        keys.append((pub_key, priv_key))
+    return keys
+
+def load_keys(num_keys=4, prefix="key"):
+    keys = []
+    for i in range(num_keys):
+        try:
+            with open(f"{prefix}_{i}_private.pem", "rb") as priv_file:
+                priv_key = rsa.PrivateKey.load_pkcs1(priv_file.read())
+            with open(f"{prefix}_{i}_public.pem", "rb") as pub_file:
+                pub_key = rsa.PublicKey.load_pkcs1(pub_file.read())
+            keys.append((pub_key, priv_key))
+        except FileNotFoundError:
+            break
+    return keys
+
+def encrypt_with_multi_keys(data, keys):
+    result = data
+    key_info = []
+    for pub_key, _ in keys:
+        aes_key = secrets.token_bytes(32)
+        iv = secrets.token_bytes(16)
+        encrypted_key_info = rsa.encrypt(aes_key + iv, pub_key)
+        key_info.append(encrypted_key_info)
+        cipher = AES.new(aes_key, AES.MODE_CBC, iv)
+        result = cipher.encrypt(pad(result, AES.block_size))
+    return result, key_info
+
+def decrypt_with_multi_keys(encrypted_data, key_info, keys):
+    result = encrypted_data
+    for i in range(len(keys) - 1, -1, -1):
+        _, priv_key = keys[i]
+        encrypted_key_info = key_info[i]
+        decrypted_key_info = rsa.decrypt(encrypted_key_info, priv_key)
+        aes_key = decrypted_key_info[:32]
+        iv = decrypted_key_info[32:]
+        cipher = AES.new(aes_key, AES.MODE_CBC, iv)
+        result = unpad(cipher.decrypt(result), AES.block_size)
+    return result
+
+def encrypt_file(input_file, output_file, keys):
+    if not os.path.exists(input_file):
+        print(f"{RED}error: File {input_file} does not exist.")
+        return False
+    try:
+        with open(input_file, "rb") as f:
+            plaintext = f.read()
+        compressed = zlib.compress(plaintext)
+        encrypted_data, key_info = encrypt_with_multi_keys(compressed, keys)
+        with open(output_file, "wb") as f:
+            f.write(len(keys).to_bytes(4, byteorder='big'))
+            for info in key_info:
+                f.write(len(info).to_bytes(4, byteorder='big'))
+                f.write(info)
+            f.write(encrypted_data)
+        print(f"{GREEN}encrypt: Encrypted file saved as: {output_file}")
+        return True
+    except Exception as e:
+        print(f"{RED}error: Failed to encrypt file: {str(e)}")
+        return False
+
+def decrypt_file(input_file, output_file, keys):
+    if not os.path.exists(input_file):
+        print(f"{RED}error: File {input_file} does not exist.")
+        return False
+    try:
+        with open(input_file, "rb") as f:
+            num_keys = int.from_bytes(f.read(4), byteorder='big')
+            if num_keys > len(keys):
+                print(f"{RED}error: Need {num_keys} keys to decrypt this file, but only found {len(keys)}.")
+                return False
+            key_info = []
+            for _ in range(num_keys):
+                info_len = int.from_bytes(f.read(4), byteorder='big')
+                key_info.append(f.read(info_len))
+            encrypted_data = f.read()
+        decrypted_data = decrypt_with_multi_keys(encrypted_data, key_info, keys[:num_keys])
+        decompressed = zlib.decompress(decrypted_data)
+        with open(output_file, "wb") as f:
+            f.write(decompressed)
+        print(f"{GREEN}decrypt: Decrypted file saved as: {output_file}")
+        return True
+    except Exception as e:
+        print(f"{RED}error: Failed to decrypt file: {str(e)}")
+        return False
+
+def genkeys_command(args):
+    try:
+        num_keys = 4
+        key_size = 1024
+        prefix = "key"
+        
+        i = 0
+        while i < len(args):
+            if args[i] == "-n" and i + 1 < len(args):
+                try:
+                    num_keys = int(args[i + 1])
+                    i += 2
+                except ValueError:
+                    print(f"{RED}genkeys: invalid number of keys: {args[i + 1]}")
+                    return
+            elif args[i] == "-s" and i + 1 < len(args):
+                try:
+                    key_size = int(args[i + 1])
+                    i += 2
+                except ValueError:
+                    print(f"{RED}genkeys: invalid key size: {args[i + 1]}")
+                    return
+            elif args[i] == "-p" and i + 1 < len(args):
+                prefix = args[i + 1]
+                i += 2
+            else:
+                print(f"{RED}genkeys: unknown option: {args[i]}")
+                print("Usage: genkeys [-n num_keys] [-s key_size] [-p prefix]")
+                return
+        
+        print(f"{YELLOW}Generating {num_keys} RSA keys with size {key_size}...")
+        keys = generate_keys(num_keys, key_size, prefix)
+        print(f"{GREEN}Successfully generated {len(keys)} key pairs with prefix '{prefix}'")
+    
+    except Exception as e:
+        print(f"{RED}Error generating keys: {e}")
+        print(f"{YELLOW}Make sure you have the 'rsa' package installed.")
+
+def encrypt_command(args):
+    if len(args) < 2:
+        print(f"{WHITE}encrypt: usage: encrypt <input_file> <output_file> [-n num_keys] [-p prefix]")
+        return
+    
+    input_file = args[0]
+    output_file = args[1]
+    num_keys = 4
+    prefix = "key"
+    
+    i = 2
+    while i < len(args):
+        if args[i] == "-n" and i + 1 < len(args):
+            try:
+                num_keys = int(args[i + 1])
+                i += 2
+            except ValueError:
+                print(f"{RED}encrypt: invalid number of keys: {args[i + 1]}")
+                return
+        elif args[i] == "-p" and i + 1 < len(args):
+            prefix = args[i + 1]
+            i += 2
+        else:
+            print(f"{RED}encrypt: unknown option: {args[i]}")
+            print("Usage: encrypt <input_file> <output_file> [-n num_keys] [-p prefix]")
+            return
+    
+    try:
+        keys = load_keys(num_keys, prefix)
+        if not keys:
+            print(f"{RED}No keys found with prefix '{prefix}'. Generate keys first with 'genkeys'.")
+            return
+        
+        print(f"{YELLOW}Encrypting {input_file} with {len(keys)} keys...")
+        if encrypt_file(input_file, output_file, keys):
+            print(f"{GREEN}File encrypted successfully.")
+    
+    except Exception as e:
+        print(f"{RED}Error encrypting file: {e}")
+        print(f"{YELLOW}Make sure you have the 'rsa' and 'pycryptodome' packages installed.")
+
+def decrypt_command(args):
+    if len(args) < 2:
+        print(f"{WHITE}decrypt: usage: decrypt <input_file> <output_file> [-n num_keys] [-p prefix]")
+        return
+    
+    input_file = args[0]
+    output_file = args[1]
+    num_keys = 4
+    prefix = "key"
+    
+    i = 2
+    while i < len(args):
+        if args[i] == "-n" and i + 1 < len(args):
+            try:
+                num_keys = int(args[i + 1])
+                i += 2
+            except ValueError:
+                print(f"{RED}decrypt: invalid number of keys: {args[i + 1]}")
+                return
+        elif args[i] == "-p" and i + 1 < len(args):
+            prefix = args[i + 1]
+            i += 2
+        else:
+            print(f"{RED}decrypt: unknown option: {args[i]}")
+            print("Usage: decrypt <input_file> <output_file> [-n num_keys] [-p prefix]")
+            return
+    
+    try:
+        keys = load_keys(num_keys, prefix)
+        if not keys:
+            print(f"{RED}No keys found with prefix '{prefix}'. Generate keys first with 'genkeys'.")
+            return
+        
+        print(f"{YELLOW}Decrypting {input_file} with {len(keys)} keys...")
+        if decrypt_file(input_file, output_file, keys):
+            print(f"{GREEN}File decrypted successfully.")
+    
+    except Exception as e:
+        print(f"{RED}Error decrypting file: {e}")
+        print(f"{YELLOW}Make sure you have the 'rsa' and 'pycryptodome' packages installed.")
+
+register_command("genkeys", genkeys_command)
+register_command("encrypt", encrypt_command)
+register_command("decrypt", decrypt_command)
 register_command("disk", disk_usage_command)
-register_command("netinfo", network_info_command)
 register_command("cputemp", cpu_temp_command)
 register_command("memory", memory_usage_command)
 register_command("checksum", checksum_command)
