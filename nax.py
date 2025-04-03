@@ -2,8 +2,6 @@ import os
 import time
 import importlib
 import threading
-from tqdm import tqdm
-from colorama import init, Fore
 
 try:
     from Crypto.Cipher import AES
@@ -21,7 +19,6 @@ modules_parallel = [
     ("re", None),
     ("sys", None),
     ("json", None),
-    ("tqdm", None),
     ("math", None),
     ("yaml", None),
     ("socket", None),
@@ -30,6 +27,7 @@ modules_parallel = [
     ("getpass", None),
     ("tarfile", None),
     ("fnmatch", None),
+    ("colorama", None),
     ("hashlib", None),
     ("zipfile", None),
     ("difflib", None),
@@ -68,23 +66,9 @@ def load_module(module_name, alias):
     except Exception as e:
         print(f"Error loading {module_name}: {e}")
 
-    finally:
-        pbar.update(1)
-
 init(strip=False, autoreset=True)
 
 RED, GREEN, YELLOW, CYAN, WHITE, ORANGE = Fore.RED, Fore.GREEN, Fore.LIGHTYELLOW_EX, Fore.LIGHTCYAN_EX, Fore.WHITE, Fore.YELLOW
-
-desc_bar = f"{CYAN}NAX-Shell · v1.0.0{YELLOW}"
-
-pbar = tqdm(
-    total=16,
-    desc=desc_bar,
-    ncols=80,
-    ascii="══",
-    dynamic_ncols=True,
-    bar_format="{desc} [{bar}] {percentage:3.0f}%"
-)
 
 threads = []
 
@@ -96,15 +80,13 @@ for mod_name, alias in modules_parallel:
 for t in threads:
     t.join()
 
-pbar.close()
-
 for mod_name, alias in modules_sequential:
     try:
         mod = importlib.import_module(mod_name)
         key = alias if alias else mod_name.split('.')[0]
         loaded_modules[key] = mod
     except Exception as e:
-        print(f"Error cargando {mod_name}: {e}")
+        print(f"Error loading {mod_name}: {e}")
 
 globals().update(loaded_modules)
 
@@ -214,7 +196,8 @@ def verify_script_integrity():
                     
                     if not integrity_ok:
                         clear()
-                        print(f"\n{RED}error: Script integrity verification failed")
+                        print(f"{RED}CRITICAL ERROR:\n")
+                        print(f"{RED}Script integrity verification failed")
                         print(f"{RED}This script has been modified from its original version.")
                         print(f"{YELLOW}Please visit https://atchyt.github.io/nax_shell.html to download the official script.")
                         os._exit(1)
@@ -312,18 +295,23 @@ def install_requirements():
         except ImportError:
             import importlib_metadata as metadata
 
-        required = {'prompt_toolkit', 'colorama', 'pyfiglet', 'tqdm', 'rarfile', 'markdown', 'pyyaml', 'psutil'}
-        if os.name == 'nt':
+            required = {'prompt_toolkit', 'colorama', 'pyfiglet', 'tqdm', 'rarfile', 'markdown', 'pyyaml', 'psutil', 'rsa', 'zipfile', 'difflib', 'fnmatch'}
+
+        if platform.system() == 'Windows':
             required.add('wmi')
 
         installed = {dist.metadata['Name'].lower() for dist in metadata.distributions() if dist.metadata.get('Name')}
         missing = {pkg for pkg in required if pkg.lower() not in installed}
 
         if missing:
+            clear()
             print(f"{RED}Installing required packages: {', '.join(missing)}")
             thread = threading.Thread(target=install_missing_packages, args=(missing,))
             thread.start()
             thread.join()
+            print(f"{GREEN}Packages installed successfully")
+            time.sleep(1)
+            clear()
             return True
 
         return False
@@ -425,9 +413,17 @@ style = Style.from_dict({
 })
 
 def update_completer():
-    global session
-    nested_completer = get_nested_completer()
-    session.completer = nested_completer
+    global completer, session
+    completer = WordCompleter(list(commands.keys()) + list(aliases.keys()))
+    
+    if 'session' in globals():
+        session = loaded_modules["prompt_toolkit_shortcuts"].PromptSession(
+            get_prompt,
+            style=style,
+            completer=get_nested_completer(),
+            history=FileHistory(HISTORY_FILE),
+            complete_while_typing=True
+        )
 
 def ls_command(args):
     path = args[0] if args else os.getcwd()
@@ -450,11 +446,18 @@ def ls_command(args):
         print(f"{RED}ls: cannot access '{path}': {str(e)}")
 
 def cd_command(args):
+    if not args:
+        os.chdir(os.path.expanduser("~"))
+        update_completer()
+        return
+    
     try:
-        os.chdir(args[0] if args else os.path.expanduser("~"))
+        path = os.path.normpath(args[0])
+        os.chdir(path)
+        update_completer()
 
     except Exception as e:
-        print(f"cd: {args[0] if args else '~'}: {e}")
+        print(f"{RED}cd: {e}")
 
 def cp_command(args):
     if len(args) < 2:
@@ -1742,8 +1745,60 @@ def set_window_title(title):
         print(f'\033]0;{title}\007', end='')
 
 def get_nested_completer():
-    path_completer = PathCompleter()
+    class DirectoryPathCompleter(PathCompleter):
+        def get_completions(self, document, complete_event):
+            for completion in super().get_completions(document, complete_event):
+                try:
+                    path = os.path.join(os.getcwd(), completion.text)
+                    
+                    if os.path.isdir(path) and not completion.text.endswith('/'):
+                        completion.text += '/'
+                        completion.display_meta = "Directory"
+                        
+                    completion.start_position = document.cursor_position - len(document.get_word_before_cursor())
 
+                except Exception as e:
+                    pass
+                yield completion
+    
+    class CaseInsensitivePathCompleter(PathCompleter):
+        def __init__(self, only_directories=False, **kwargs):
+            super().__init__(**kwargs)
+            self.only_directories = only_directories
+            
+        def get_completions(self, document, complete_event):
+            word_before_cursor = document.get_word_before_cursor().lower()
+            current_dir = os.getcwd()
+            
+            try:
+                items = os.listdir(current_dir)
+                
+                for item in items:
+                    if item.lower().startswith(word_before_cursor):
+                        path = os.path.join(current_dir, item)
+                        is_dir = os.path.isdir(path)
+                        
+                        if self.only_directories and not is_dir:
+                            continue
+                        
+                        from prompt_toolkit.completion import Completion
+                        display = f"{item}/" if is_dir else item
+                        text = f"{item}/" if is_dir else item
+                        meta = "Directory" if is_dir else "File"
+                        
+                        yield Completion(
+                            text=text,
+                            start_position=-len(word_before_cursor),
+                            display=display,
+                            display_meta=meta
+                        )
+            except Exception as e:
+                for completion in super().get_completions(document, complete_event):
+                    yield completion
+    
+    path_completer = CaseInsensitivePathCompleter()
+    dir_completer = CaseInsensitivePathCompleter(only_directories=True)
+    
     command_completers = {}
 
     for cmd in list(commands.keys()):
@@ -1752,28 +1807,77 @@ def get_nested_completer():
     for alias in aliases.keys():
         command_completers[alias] = None
 
-    file_commands = {
-        "cat": PathCompleter(only_directories=False),
-        "mkdir": PathCompleter(only_directories=True),
-        "cd": PathCompleter(only_directories=True),
-        "md": PathCompleter(only_directories=True),
-        "ls": PathCompleter(),
-        "grep": PathCompleter(),
-        "cp": PathCompleter(),
-        "mv": PathCompleter(),
-        "rm": PathCompleter()
-    }
-    command_completers.update(file_commands)
-
     operators = {
         ";": NestedCompleter.from_nested_dict(command_completers),
         "&&": NestedCompleter.from_nested_dict(command_completers),
         "|": NestedCompleter.from_nested_dict(command_completers)
     }
 
+    file_commands = [
+        "cd", "mv", "cp", "cat", "mkdir", "md", "ls", "grep", "rm", 
+        "fileinfo", "checksum", "unzip", "search", "touch", "find",
+        "diff", "convert", "zip", "encrypt", "decrypt"
+    ]
+    
+    multi_arg_commands = ["mv", "cp", "diff", "convert", "zip", "encrypt", "decrypt"]
+    
+    for cmd in multi_arg_commands:
+        try:
+            file_dict = {word: path_completer for word in [""] + list(os.listdir("."))}
+            command_completers[cmd] = file_dict
+
+        except Exception:
+            command_completers[cmd] = path_completer
+    
+    single_arg_commands = {
+        "cat": PathCompleter(only_directories=False),
+        "mkdir": dir_completer,
+        "cd": dir_completer,
+        "md": dir_completer,
+        "ls": dir_completer,
+        "grep": PathCompleter(),
+        "rm": PathCompleter(),
+        "fileinfo": PathCompleter(),
+        "checksum": PathCompleter(),
+        "unzip": PathCompleter(),
+        "search": dir_completer,
+        "touch": PathCompleter(),
+        "find": dir_completer,
+    }
+    
+    command_completers.update(single_arg_commands)
+    
+    option_completers = {
+        "genkeys": {
+            "-n": None,
+            "-s": None,
+            "-p": None,
+        },
+        "encrypt": {
+            "-n": None,
+            "-p": None,
+        },
+        "decrypt": {
+            "-n": None,
+            "-p": None,
+        },
+        "checksum": {
+            word: WordCompleter(["md5", "sha1", "sha256"]) for word in list(os.listdir("."))
+        },
+        "chmod": {
+            "-r": PathCompleter(),
+            "+x": PathCompleter(),
+            "-x": PathCompleter(),
+        },
+    }
+    
+    for cmd, completer in option_completers.items():
+        if cmd not in multi_arg_commands:
+            command_completers[cmd] = completer
+
     result = {}
     for cmd, completer in command_completers.items():
-        if completer is None:
+        if completer is None and cmd not in file_commands:
             result[cmd] = operators
         else:
             result[cmd] = completer
@@ -1816,13 +1920,6 @@ def main():
         except Exception as e:
             print(f"{RED}An error occurred: {str(e)}")
 
-if __name__ == "__main__":
+if __name__ == "__main__":    
     clear()
-    print(f"{YELLOW}Starting {CYAN}NAX-Shell{YELLOW} | v1.0.0")
-    time.sleep(0.15)
-    print(f"{YELLOW}Initializing shell environment...")
-    time.sleep(0.15)
-    clear()
-    print(f"{YELLOW} Loading {CYAN}NAX-Shell{YELLOW} | v1.0.0\n════════════════════════════\n")
-    time.sleep(0.08)
     main()
