@@ -795,7 +795,7 @@ def login():
             print(f"{RED}Error: Cannot get the user from the API")
             return False
 
-        print(f"{CYAN}{fitNAXShell.renderText('NAX-Shell')}")
+        print(f"{CYAN}{fitNAXShell.renderText('NAX-Shell | BETA')}")
         print(f"{CYAN}{fitNAXVers.renderText('v 1.0.0')}")
         print(f"{ORANGE}Authentication Required")
         current_user = getpass.getuser()
@@ -816,7 +816,7 @@ def login():
                 continue
 
         clear()
-        print(f"{RED} Exiting {CYAN}NAX-Shell{RED} | v1.0.0\n════════════════════════════\n")
+        print(f"{RED} Exiting {CYAN}NAX-Shell · BETA{RED} | v1.0.0\n════════════════════════════\n")
         print(f"{RED}3 incorrect password attempts")
         return False
 
@@ -1983,8 +1983,8 @@ def main():
         return
 
     clear()
-    set_window_title('NAX-Shell · v1.0.0')
-    print(f"{CYAN}{fitNAXShell.renderText('NAX-Shell')}")
+    set_window_title('NAX-Shell · BETA · v1.0.0')
+    print(f"{CYAN}{fitNAXShell.renderText('NAX-Shell | BETA')}")
     print(f"{CYAN}{fitNAXVers.renderText('v 1.0.0')}")
     print(f"{YELLOW}Platform: {platform.system()} {platform.release()}")
     print(f"{GREEN}Type 'help' for available commands\nand 'web' for documentation\n")
