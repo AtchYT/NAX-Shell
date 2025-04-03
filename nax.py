@@ -2,6 +2,7 @@ import os
 import time
 import importlib
 import threading
+from colorama import init, Fore
 
 try:
     from Crypto.Cipher import AES
@@ -27,7 +28,6 @@ modules_parallel = [
     ("getpass", None),
     ("tarfile", None),
     ("fnmatch", None),
-    ("colorama", None),
     ("hashlib", None),
     ("zipfile", None),
     ("difflib", None),
@@ -289,13 +289,13 @@ def install_missing_packages(missing):
 
 def install_requirements():
     try:
+        required = {'prompt_toolkit', 'colorama', 'pyfiglet', 'tqdm', 'rarfile', 'markdown', 'pyyaml', 'psutil', 'rsa'}
+        
         try:
             import importlib.metadata as metadata
-
+            
         except ImportError:
             import importlib_metadata as metadata
-
-            required = {'prompt_toolkit', 'colorama', 'pyfiglet', 'tqdm', 'rarfile', 'markdown', 'pyyaml', 'psutil', 'rsa', 'zipfile', 'difflib', 'fnmatch'}
 
         if platform.system() == 'Windows':
             required.add('wmi')
@@ -310,9 +310,9 @@ def install_requirements():
             thread.start()
             thread.join()
             print(f"{GREEN}Packages installed successfully")
-            time.sleep(1)
-            clear()
-            return True
+            print(f"{CYAN}Please run the script again to continue.")
+            time.sleep(2)
+            sys.exit(0)
 
         return False
 
