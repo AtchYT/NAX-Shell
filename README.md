@@ -12,7 +12,7 @@
 
 ## Usage
 ```bash
-python nax.py
+python nax_shell.py
 ```
 
 ## License
