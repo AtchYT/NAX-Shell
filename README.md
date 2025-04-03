@@ -1,4 +1,4 @@
-# NAX-Shell | v1.0.0 | BETA
+# NAX-Shell · BETA · v1.0.0
 
 ## Features
 - Multi-threading support
