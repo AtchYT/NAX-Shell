@@ -11,9 +11,12 @@
 - Python 3.8+
 
 ## Usage
-```bash
+```Linux/MacOS
 python nax_shell.py
-```
+
+Windows
+Double-Click on the nax_shell.bat or executing the Linux/MacOS command```
+
 
 ## License
 This project is licensed under the MIT License - see the [LICENSE](LICENSE.md) file for details.
