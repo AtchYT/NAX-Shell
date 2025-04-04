@@ -11,7 +11,8 @@
 - Python 3.8+
 
 ## Usage
-```Linux/MacOS
+```
+Linux/MacOS
 python nax_shell.py
 
 Windows
