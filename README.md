@@ -5,7 +5,7 @@
 - AES encryption and decryption
 - Various system utilities
 - Interactive command-line interface
-- Integration with multiple Python libraries
+- Unix-like commands and functions
 
 ## Requirements
 - Python 3.8+
