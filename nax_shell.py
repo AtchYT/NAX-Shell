@@ -156,109 +156,6 @@ def update_auth_timestamp():
         print(f"{RED}Auth timestamp update error: {e}")
         pass
 
-def verify_script_integrity():
-    def check_integrity_in_background():
-        try:
-            script_path = os.path.abspath(__file__)
-            with open(script_path, 'rb') as f:
-                script_content = f.read()
-                
-            file_size = len(script_content)
-            line_count = script_content.count(b'\n') + 1
-            function_count = script_content.count(b'def ')
-            import_count = script_content.count(b'import ')
-            class_count = script_content.count(b'class ')
-            
-            byte_counter = collections.Counter(script_content)
-            top_bytes = {str(byte): count for byte, count in byte_counter.most_common(20)}
-            
-            integrity_summary = {
-                'size': file_size,
-                'lines': line_count,
-                'functions': function_count,
-                'imports': import_count,
-                'classes': class_count,
-                'byte_freq': top_bytes
-            }
-            
-            source = "remote"
-            url = "https://atchyt.github.io/api.html"
-            try:
-                with urllib_request.urlopen(url) as response:
-                    content = response.read().decode('utf-8')
-
-            except Exception as e:
-                print(f"\n{YELLOW}Note: Could not verify script integrity: {str(e)}")
-                return
-            
-            match = re.search(r'<div id="script_integrity"[^>]*>(.*?)</div>', content, re.DOTALL)
-            if match:
-                try:
-                    remote_integrity = json.loads(match.group(1).strip())
-                    
-                    if platform.system() == 'Windows':
-                        size_match = abs(remote_integrity.get('size', 0) - file_size) < 500
-                        lines_match = abs(remote_integrity.get('lines', 0) - line_count) < 30
-                        functions_match = abs(remote_integrity.get('functions', 0) - function_count) < 10
-                        imports_match = abs(remote_integrity.get('imports', 0) - import_count) < 10
-                        byte_freq_match = True
-                    else:
-                        size_match = abs(remote_integrity.get('size', 0) - file_size) < 200
-                        lines_match = abs(remote_integrity.get('lines', 0) - line_count) < 15
-                        functions_match = abs(remote_integrity.get('functions', 0) - function_count) < 5
-                        imports_match = abs(remote_integrity.get('imports', 0) - import_count) < 5
-                        
-                        byte_freq_match = True
-                        if 'byte_freq' in remote_integrity:
-                            remote_bytes = remote_integrity['byte_freq']
-                            byte_matches = 0
-                            
-                            if platform.system() == 'Windows':
-                                required_matches = 20
-                                exact_match = True
-                            elif platform.system() == 'Darwin':
-                                required_matches = 19
-                                exact_match = True
-                            else:
-                                required_matches = 19
-                                exact_match = True
-                            
-                            for byte, count in top_bytes.items():
-                                if byte in remote_bytes:
-                                    remote_count = remote_bytes[byte]
-                                    if exact_match:
-                                        if count == remote_count:
-                                            byte_matches += 1
-                                    else:
-                                        if abs(count - remote_count) / max(count, remote_count) < 0.005:
-                                            byte_matches += 1
-                            
-                            byte_freq_match = byte_matches >= required_matches
-                    
-                    integrity_ok = size_match and lines_match and functions_match and imports_match and byte_freq_match
-                    
-                    if not integrity_ok:
-                        clear()
-                        print(f"{RED}CRITICAL ERROR:\n")
-                        print(f"{RED}Script integrity verification failed")
-                        print(f"{RED}This script has been modified from its original version.")
-                        print(f"{YELLOW}Please visit https://atchyt.github.io/nax_shell.html to download the official script.")
-                        update_remaining_auth_time()
-                        os._exit(1)
-                
-                except json.JSONDecodeError:
-                    print(f"{YELLOW}Warning: Invalid integrity data format")
-            
-            else:
-                print(f"{YELLOW}Warning: Integrity data not found in API response")
-        
-        except Exception as e:
-            print(f"\n{YELLOW}Note: Could not verify script integrity: {str(e)}")
-    
-    check_thread = threading.Thread(target=check_integrity_in_background)
-    check_thread.daemon = True
-    check_thread.start()
-
 def get_api_url():
     def download_in_background():
         try:
@@ -1991,7 +1888,6 @@ def main():
     load_aliases()
     update_completer()
     get_api_url()
-    verify_script_integrity()
 
     try:
         while True:
