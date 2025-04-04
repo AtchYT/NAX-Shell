@@ -15,7 +15,8 @@
 python nax_shell.py
 
 Windows
-Double-Click on the nax_shell.bat or executing the Linux/MacOS command```
+Double-Click on the nax_shell.bat or executing the Linux/MacOS command
+```
 
 
 ## License
